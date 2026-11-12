@@ -147,7 +147,7 @@
   <div id="hudBR" class="panel">
     <div class="stat"><div class="v" id="ammoV">0</div><div class="k">Ammo</div></div>
     <div class="stat"><div class="v" id="serumV" style="color:#9be35a">0</div><div class="k">Serum<span class="deskOnly" style="display:inline"> [Q]</span></div></div>
-    <div class="stat"><div class="v" id="radioV" style="color:#5ad1ff">0/5</div><div class="k">Radio</div></div>
+    <div class="stat"><div class="v" id="radioV" style="color:#5ad1ff">0/5</div><div class="k" id="radioK">Radio</div></div>
     <div class="stat"><div class="v" id="killV">0</div><div class="k">Kills</div></div>
   </div>
   <div id="infect"><div class="s">Infected – turning in</div><div class="t" id="infT">90</div><div class="s" id="infHint">Use serum [Q]</div></div>
@@ -4055,12 +4055,7 @@ function buildCity(){
     const cx=BL[i],cz=BL[j];
     const side=new THREE.Mesh(new THREE.PlaneGeometry(15,15),walkMat);side.rotation.x=-Math.PI/2;side.position.set(cx,.02,cz);side.receiveShadow=true;staticGroup.add(side);world.lots.push([cx-7.5,cz-7.5,15,15]);
     if(i===4&&j===4){ // evac plaza
-      addExit(EVAC.x,EVAC.z,'METRO');
-      // walled compound around the metro entrance, the gate faces west
-      const wc={color:0xb0aaa4,kind:'wall',tex:['concrete_wall',1/4]};
-      addBox(cx,cz-7.2,15,.7,5,wc);addBox(cx,cz+7.2,15,.7,5,wc);addBox(cx+7.2,cz,.7,13.7,5,wc);
-      addBox(cx-7.2,cz-4.6,.7,4.5,5,wc);addBox(cx-7.2,cz+4.6,.7,4.5,5,wc);
-      addGate(cx-7.2,cz,4.7,'z');
+      addMetroExit();
       continue;}
     const t=(i===0&&j===0)?0:rnd();
     if(t<.62){
@@ -4105,50 +4100,104 @@ function buildCity(){
 // ---------- shared world pieces ----------
 function signTex(text){const c=document.createElement('canvas');c.width=256;c.height=96;const g=c.getContext('2d');g.fillStyle='#0b3d1c';g.fillRect(0,0,256,96);g.strokeStyle='#7dff9c';g.lineWidth=6;g.strokeRect(5,5,246,86);
   g.fillStyle='#b8ffc9';g.font='bold 52px Oswald, Arial Narrow, sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(text,128,50);return new THREE.CanvasTexture(c);}
-// the level exit: a lit opening you walk into (metro stairs / ferry gangway)
-function addExit(x,z,label){
-  const ty=terr(x,z);
-  const dark=new THREE.Mesh(new THREE.PlaneGeometry(3.4,4.6),new THREE.MeshBasicMaterial({color:0x020302}));dark.rotation.x=-Math.PI/2;dark.position.set(x,ty+.06,z);staticGroup.add(dark);
-  for(let i=0;i<7;i++){const st=new THREE.Mesh(new THREE.PlaneGeometry(3.1,.22),new THREE.MeshBasicMaterial({color:new THREE.Color().setHSL(.36,.25,.22-i*.028)}));st.rotation.x=-Math.PI/2;st.position.set(x-1.3+i*.45,ty+.065,z);st.rotation.z=Math.PI/2;staticGroup.add(st);}
-  const rm={color:0x6a7078};
-  addBox(x,z-2.45,3.6,.18,1.1,{...rm,kind:'rail',noFade:true});addBox(x,z+2.45,3.6,.18,1.1,{...rm,kind:'rail',noFade:true});addBox(x+1.85,z,.18,5.08,1.1,{...rm,kind:'rail',noFade:true});
-  const glowP=new THREE.Mesh(new THREE.PlaneGeometry(4.2,5.4),new THREE.MeshBasicMaterial({color:0x4dff7a,transparent:true,opacity:.18,blending:THREE.AdditiveBlending,depthWrite:false}));glowP.rotation.x=-Math.PI/2;glowP.position.set(x,ty+.07,z);staticGroup.add(glowP);
-  const post=new THREE.Mesh(new THREE.BoxGeometry(.14,3.2,.14),new THREE.MeshLambertMaterial({color:0x333333}));post.position.set(x-2.1,ty+1.6,z-2.6);staticGroup.add(post);
-  const sm=new THREE.MeshBasicMaterial({map:signTex(label)});const sign=new THREE.Mesh(new THREE.BoxGeometry(.1,.75,2),[sm,sm,sm,sm,sm,sm]);sign.position.set(x-2.1,ty+3.1,z-2.6);sign.rotation.y=Math.PI/4;staticGroup.add(sign);
-  const lt=new THREE.PointLight(0x4dff7a,2.2,10,2);lt.position.set(x,ty+2.2,z);staticGroup.add(lt);
-  world.exit={x,z,y:ty,glow:glowP,label};world.exitWarnT=0;
+// ---------- exits, the powered grate and the way back collapsing ----------
+function flatQuad(w,d,mat,x,y,z){const m=new THREE.Mesh(new THREE.PlaneGeometry(w,d),mat);m.rotation.x=-Math.PI/2;m.position.set(x,y,z);staticGroup.add(m);return m;}
+function solidMesh(w,h,d,mat,x,y,z,parent){const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);m.position.set(x,y,z);m.castShadow=true;(parent||staticGroup).add(m);return m;}
+// a stairwell seen from above: a dark shaft with steps fading into it (dir 1 = going down towards +x)
+function stairShaft(x0,x1,z,w,dir){
+  flatQuad(Math.abs(x1-x0),w,new THREE.MeshBasicMaterial({color:0x020302}),(x0+x1)/2,.06,z);
+  const n=Math.floor(Math.abs(x1-x0)/.5);
+  for(let i=0;i<n;i++){const st=flatQuad(.24,w-.3,new THREE.MeshBasicMaterial({color:new THREE.Color().setHSL(.1,.06,Math.max(.015,.3-i*.3/n))}),(dir>0?x0:x1)+dir*(.3+i*.5),.065,z);}
 }
+function addSign(label,x,y,z,ry,parent){const sm=new THREE.MeshBasicMaterial({map:signTex(label)});const s=new THREE.Mesh(new THREE.BoxGeometry(.1,.75,2),sm);s.position.set(x,y,z);s.rotation.y=ry||0;(parent||staticGroup).add(s);return s;}
+// the level exit: a glowing zone you walk into once the grate is open
+function markExit(x,z,label,w,d,r){
+  const ty=terr(x,z);
+  const glowP=new THREE.Mesh(new THREE.PlaneGeometry(w,d),new THREE.MeshBasicMaterial({color:0x4dff7a,transparent:true,opacity:.18,blending:THREE.AdditiveBlending,depthWrite:false}));glowP.rotation.x=-Math.PI/2;glowP.position.set(x,ty+.09,z);staticGroup.add(glowP);
+  const lt=new THREE.PointLight(0x4dff7a,2.2,10,2);lt.position.set(x,ty+2.2,z);staticGroup.add(lt);
+  world.exit={x,z,y:ty,glow:glowP,label,r:r||2.3};world.exitWarnT=0;
+}
+// control panel next to the grate: bring all the parts here to power it
+function addPanel(x,z){
+  const b=addBox(x,z,.7,.7,1.5,{color:0x3a4048,kind:'panel',noFade:true});const ty=b.base;
+  const scr=new THREE.MeshBasicMaterial({color:0xff3020});
+  solidMesh(.04,.42,.46,scr,x-.37,ty+1.12,z);solidMesh(.46,.42,.04,scr,x,ty+1.12,z-.37);
+  const bar=solidMesh(.5,.09,.5,new THREE.MeshBasicMaterial({color:0x6dff8c}),x,ty+1.56,z);bar.scale.set(.001,1,1);bar.visible=false;
+  const lt=new THREE.PointLight(0xff3020,1.1,6,2);lt.position.set(x-.6,ty+1.6,z-.6);staticGroup.add(lt);
+  world.panel={x,z,y:ty,scr,bar,lt,t:0,need:2.4,done:false,warnT:0,tickT:0};
+}
+function updatePanel(dt){
+  const pn=world.panel,p=player;if(!pn||pn.done||!p)return;pn.warnT-=dt;
+  const RD=game.radio,it=LEVELS[game.level-1].item,ready=RD.have>=RD.need;
+  pn.scr.color.setHex(ready?(Math.sin(game.time*8)>0?0xffc040:0x7a5a10):0xff3020);pn.lt.color.copy(pn.scr.color);
+  const near=Math.hypot(p.x-pn.x,p.z-pn.z)<1.9&&Math.abs(p.y-pn.y)<1;
+  if(near&&!ready){if(pn.warnT<=0){msg(`No power. ${it.dev} needs all ${it.many} – ${RD.have}/${RD.need}`,2.4,'#f0a33a');pn.warnT=4;}}
+  else if(near){if(pn.t===0)msg(`Fitting the ${it.many} – stay by the panel…`,2,'#5ad1ff');
+    pn.t+=dt;pn.tickT-=dt;if(pn.tickT<=0){pn.tickT=.3;tone(500+pn.t*260,560+pn.t*260,.06,.18,'square');noise(pn.x,pn.z,9);
+      for(let k=0;k<4;k++)glow.emit(pn.x,pn.y+1.3,pn.z,R(-2,2),R(1,3),R(-2,2),.3,0xffd070,8);}
+    if(pn.t>=pn.need){pn.done=true;pn.scr.color.setHex(0x4dff7a);pn.lt.color.setHex(0x4dff7a);pn.bar.visible=false;openGate();return;}}
+  else pn.t=Math.max(0,pn.t-dt*1.5);
+  pn.bar.visible=pn.t>0;pn.bar.scale.x=Math.max(.001,pn.t/pn.need);
+}
+// the way you came in collapses behind you, so there is no going back
+function addCollapse(c){c.t=0;c.boomed=false;for(const m of c.parts){m.userData.p0=m.position.clone();m.userData.r0=m.rotation.clone();}world.collapse=c;}
+function resetCollapse(){const c=world.collapse;if(!c)return;c.t=0;c.boomed=false;
+  for(const m of c.parts){m.position.copy(m.userData.p0);m.rotation.copy(m.userData.r0);m.visible=true;m.userData.vy=0;m.userData.wet=false;}
+  for(const m of c.rubble)m.visible=false;}
+function finishCollapse(){const c=world.collapse;if(!c)return;c.t=99;c.boomed=true;
+  for(const m of c.parts){if(c.sink!==undefined)m.visible=false;else{m.visible=true;m.position.copy(m.userData.p0);m.position.y=c.floor+m.userData.rest;m.rotation.set(m.userData.fx,m.userData.r0.y,m.userData.fz);}}
+  for(const m of c.rubble){m.visible=true;m.scale.copy(m.userData.s1);}}
+function updateCollapse(dt){
+  const c=world.collapse;if(!c||c.t>=99)return;c.t+=dt;
+  if(!c.boomed&&c.t>.7){c.boomed=true;SFX.boom();game.shake=Math.max(game.shake,1.1);msg(c.msg,3.4,'#f0a33a');}
+  if(c.t>.7&&c.t<c.dur&&Math.random()<dt*30)smoke.emit(c.x+R(-c.sx,c.sx),c.y+R(.2,2),c.z+R(-c.sz,c.sz),R(-1.5,1.5),R(.5,2),R(-1.5,1.5),R(1.5,3),0x6a645c,0);
+  if(c.t>.7&&c.t<c.dur)game.shake=Math.max(game.shake,.25);
+  let busy=c.t<c.dur;
+  for(const m of c.parts){const u=m.userData;if(c.t<u.delay||!m.visible)continue;
+    const fl=c.sink!==undefined?c.sink:c.floor+u.rest;if(m.position.y<=fl){if(c.sink!==undefined)m.visible=false;continue;}
+    busy=true;u.vy=(u.vy||0)-G*.8*dt;m.position.y+=u.vy*dt;m.rotation.x+=u.rx*dt;m.rotation.z+=u.rz*dt;
+    if(c.water!==undefined&&!u.wet&&m.position.y<c.water){u.wet=true;nz(.5,900,.3,'lowpass');for(let k=0;k<26;k++)fx.emit(m.position.x+R(-2,2),c.water+.2,m.position.z+R(-2.5,2.5),R(-2,2),R(3,8),R(-2,2),R(.5,1.1),0xa8c4d8,14);}
+    if(m.position.y<=fl&&c.sink===undefined){m.position.y=fl;m.rotation.set(u.fx,u.r0.y,u.fz);nz(.25,500,.35,'lowpass');
+      for(let k=0;k<6;k++)smoke.emit(m.position.x+R(-1,1),fl+.3,m.position.z+R(-1,1),R(-2,2),R(.3,1.2),R(-2,2),R(1,2.2),0x6a645c,0);}}
+  for(const m of c.rubble){const k=clamp((c.t-u_delay(m))/.5,0,1);if(k>0){m.visible=true;m.scale.copy(m.userData.s1).multiplyScalar(Math.max(.02,k));}}
+  if(!busy)c.t=99;
+}
+function u_delay(m){return m.userData.delay||1;}
 function addGate(x,z,len,axis){
   const ty=terr(x,z);
   const along=axis==='z';const b=addBox(x,z,along?.5:len,along?len:.5,5,{color:0x2c3036,kind:'gate'});
   const meshes=[];const bm=new THREE.MeshLambertMaterial({color:0x7a8088});const rm=new THREE.MeshLambertMaterial({color:0x8a3a1a,emissive:0x200800});
-  const n=Math.round(len/.45);for(let i=0;i<=n;i++){const t=-len/2+i*len/n;const bar=new THREE.Mesh(new THREE.BoxGeometry(.09,4.8,.09),bm);bar.position.set(x+(along?0:t),ty+2.4,z+(along?t:0));bar.position[along?'x':'z']-=.3;staticGroup.add(bar);meshes.push(bar);}
+  const n=Math.round(len/.45);for(let i=0;i<=n;i++){const t=-len/2+i*len/n;const bar=new THREE.Mesh(new THREE.BoxGeometry(.09,4.8,.09),bm);bar.userData.bar=true;bar.position.set(x+(along?0:t),ty+2.4,z+(along?t:0));bar.position[along?'x':'z']-=.3;staticGroup.add(bar);meshes.push(bar);}
   for(const y of [.6,2.4,4.2]){const r=new THREE.Mesh(new THREE.BoxGeometry(along?.14:len,.22,along?len:.14),bm);r.position.set(x-(along?.3:0),ty+y,z-(along?0:.3));staticGroup.add(r);meshes.push(r);}
   const sign=new THREE.Mesh(new THREE.BoxGeometry(along?.06:1.4,.7,along?1.4:.06),rm);sign.position.set(x-(along?.36:0),ty+2.9,z-(along?0:.36));staticGroup.add(sign);meshes.push(sign);
   const lamp=new THREE.PointLight(0xff3020,1.6,9,2);lamp.position.set(x-(along?1:0),ty+4.6,z-(along?0:1));staticGroup.add(lamp);
   world.gate={b,x,z,ty,len,axis,hp:6,meshes,lamp,broken:false,warnT:0};
 }
-function breakGate(){
-  const g=world.gate;if(!g||g.broken)return;g.broken=true;
+// the grate rolls up once the panel has power
+function openGate(){
+  const g=world.gate;if(!g||g.broken)return;g.broken=true;g.open=0;
   const i=boxes.indexOf(g.b);if(i>=0)boxes.splice(i,1);const j=fadeMeshes.indexOf(g.b.mesh);if(j>=0)fadeMeshes.splice(j,1);g.b.mesh.visible=false;_boxMeshes=null;
-  for(const m of g.meshes){m.userData.fall={vy:R(1,3),vx:R(.5,2.5)*(g.axis==='z'?1:0),vz:R(.5,2.5)*(g.axis==='z'?0:1),rx:R(-3,3),rz:R(-3,3)};}
+  for(const m of g.meshes)m.userData.y0=m.position.y;
   g.lamp.color.setHex(0x4dff7a);
-  for(let k=0;k<40;k++)glow.emit(g.x,g.ty+R(.5,4),g.z+R(-g.len/2,g.len/2),R(-3,6),R(1,5),R(-3,3),R(.3,.8),0xffd070,10);
-  for(let k=0;k<10;k++)smoke.emit(g.x,g.ty+R(.5,3),g.z+R(-2,2),R(0,2),R(.5,1.5),R(-1,1),R(1.5,3),0x5a5550,0);
-  SFX.boom();game.shake=Math.max(game.shake,.8);noise(g.x,g.z,30);
-  msg('The gate is down – get to the exit!',3,'#7fe39a');
+  for(let k=0;k<30;k++)glow.emit(g.x+(g.axis==='z'?0:R(-g.len/2,g.len/2)),g.ty+R(.5,4),g.z+(g.axis==='z'?R(-g.len/2,g.len/2):0),R(-3,3),R(1,5),R(-3,3),R(.3,.8),0xffd070,10);
+  tone(70,180,1.6,.4,'sawtooth');nz(1.6,2400,.3,'bandpass');game.shake=Math.max(game.shake,.5);noise(g.x,g.z,30);
+  msg(LEVELS[game.level-1].item.open,3,'#7fe39a');
 }
+function updateGate(dt){const g=world.gate;if(!g||!g.broken||g.open>=1)return;g.open=Math.min(1,g.open+dt/1.6);const k=g.open,top=g.ty+4.75;
+  for(const m of g.meshes){if(m.userData.bar){m.scale.y=Math.max(.02,1-k);m.position.y=top-2.4*(1-k);}else m.position.y=lerp(m.userData.y0,top,k);}}
 function gateDist(p){const g=world.gate;if(!g||g.broken)return 1e9;const b=g.b;return Math.hypot(clamp(p.x,b.x0,b.x1)-p.x,clamp(p.z,b.z0,b.z1)-p.z);}
+// hitting the grate does nothing: it only opens from the panel
 function hitGate(p){const g=world.gate;if(!g||g.broken||gateDist(p)>p.c.melee.range+.2)return false;
   const b=g.b;if(Math.abs(angDiff(Math.atan2(clamp(p.x,b.x0,b.x1)-p.x,clamp(p.z,b.z0,b.z1)-p.z),p.face))>1.2)return false;
-  if(game.radio.have<game.radio.need){if(g.warnT<=0){msg(`Locked tight. Fix the radio first – ${game.radio.have}/${game.radio.need} parts`,2.2,'#f0a33a');g.warnT=3;}return true;}
-  g.hp--;tone(220,90,.18,.45,'square');nz(.2,3000,.4,'highpass');noise(g.x,g.z,16);game.shake=Math.max(game.shake,.25);
-  for(let k=0;k<12;k++)glow.emit(clamp(p.x,b.x0,b.x1),p.y+1.3,clamp(p.z,b.z0,b.z1),R(-3,3),R(0,4),R(-3,3),.3,0xffd070,10);
-  for(const m of g.meshes)m.position.x+=R(-.04,.04);
-  if(g.hp<=0)breakGate();else msg(`The gate gives a little… (${g.hp} more)`,1.2);return true;}
+  tone(220,90,.18,.3,'square');nz(.2,3000,.3,'highpass');noise(g.x,g.z,10);gateWarn();return true;}
+function gateWarn(){const g=world.gate;if(!g||g.warnT>0)return;g.warnT=3.5;const RD=game.radio,it=LEVELS[game.level-1].item;
+  msg(RD.have<RD.need?`Locked. Find all ${it.many} for ${it.dev} – ${RD.have}/${RD.need}`:`The grate won’t budge – power ${it.dev} next to it`,2.4,'#f0a33a');}
 function addPerimeterAndBeacon(){
   const wm={color:0x8a8580,noFade:true,tex:['concrete_wall',1/4]};
-  if(!world.noWalls){addBox(0,-HALF-1,120,2,5,wm);addBox(0,HALF+1,120,2,5,wm);addBox(-HALF-1,0,2,120,5,wm);addBox(HALF+1,0,2,120,5,wm);}
+  if(!world.noWalls){addBox(0,-HALF-1,120,2,5,wm);addBox(0,HALF+1,120,2,5,wm);addBox(-HALF-1,0,2,120,5,wm);
+    const gp=world.gapE;if(!gp)addBox(HALF+1,0,2,120,5,wm);
+    else{const a=gp.z-gp.w/2,b=gp.z+gp.w/2;addBox(HALF+1,(-60+a)/2,2,a+60,5,wm);addBox(HALF+1,(b+60)/2,2,60-b,5,wm);
+      solidMesh(2,1.5,gp.w,texLambert('concrete_wall',1/4,0x8a8580),HALF+1,4.25,gp.z);}}
   const ey=terr(EVAC.x,EVAC.z);
   const beam=new THREE.Mesh(new THREE.CylinderGeometry(.6,1.2,40,16,1,true),new THREE.MeshBasicMaterial({color:0x4dff7a,transparent:true,opacity:.14,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}));
   beam.position.set(EVAC.x,ey+20,EVAC.z);scene.add(beam);
@@ -4170,17 +4219,22 @@ function buildHarbor(){
   const ground=new THREE.Mesh(new THREE.PlaneGeometry(118,118),TEX.concrete_yard?texLambert('concrete_yard',1/8,0x8c8c8c):new THREE.MeshLambertMaterial({color:0x2a2b2d}));ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;staticGroup.add(ground);
   // sea + collision (invisible tall boxes), pier neck x38-44 z27-33, pier head x44-57 z24-36
   const wmat=TEX.water?new THREE.MeshLambertMaterial({map:TEX.water.clone(),color:0x9ab0c0,emissive:0x061420}):new THREE.MeshLambertMaterial({color:0x0c1d2a,emissive:0x04101a});
-  if(TEX.water){wmat.map.needsUpdate=true;wmat.map.wrapS=wmat.map.wrapT=THREE.RepeatWrapping;wmat.map.repeat.set(20/7,116/7);}
-  const water=new THREE.Mesh(new THREE.PlaneGeometry(20,116),wmat);water.rotation.x=-Math.PI/2;water.position.set(48,.03,0);staticGroup.add(water);world.water=water;
+  if(TEX.water){wmat.map.needsUpdate=true;wmat.map.wrapS=wmat.map.wrapT=THREE.RepeatWrapping;wmat.map.repeat.set(64/7,150/7);}
+  const water=new THREE.Mesh(new THREE.PlaneGeometry(64,150),wmat);water.rotation.x=-Math.PI/2;water.position.set(70,.03,10);staticGroup.add(water);world.water=water;
   const W={invisible:true,noFade:true,kind:'water'};
-  addBox(48,-17,20,82,30,W);addBox(48,47,20,22,30,W);addBox(41,25.5,6,3,30,W);addBox(41,34.5,6,3,30,W);
+  addBox(48,-17,20,82,30,W);addBox(48,47,20,22,30,W);addBox(48,25.5,20,3,30,W);addBox(48,34.5,20,3,30,W);
+  // the bridge to the island: through the sea wall and on across the bay
+  world.gapE={z:30,w:6};
   const deck=TEX.wood_deck?texLambert('wood_deck',1/3,0xb8a898):new THREE.MeshLambertMaterial({color:0x4a3b2c});
-  const neck=new THREE.Mesh(new THREE.PlaneGeometry(6,6),deck);neck.rotation.x=-Math.PI/2;neck.position.set(41,.05,30);staticGroup.add(neck);
-  const head=new THREE.Mesh(new THREE.PlaneGeometry(13,12),deck);head.rotation.x=-Math.PI/2;head.position.set(50.5,.05,30);staticGroup.add(head);
-  if(!TEX.wood_deck)for(let x=38.5;x<57;x+=1.1){const l=new THREE.Mesh(new THREE.PlaneGeometry(.06,x<44?6:12),new THREE.MeshBasicMaterial({color:0x2a2018}));l.rotation.x=-Math.PI/2;l.position.set(x,.06,30);staticGroup.add(l);}
-  addExit(EVAC.x,EVAC.z,'FERRY');
-  for(const [x,z] of [[38.4,27.2],[38.4,32.8],[44,24.4],[44,35.6],[56.5,24.4],[56.5,35.6]]){const bo=new THREE.Mesh(new THREE.CylinderGeometry(.2,.25,.6,8),new THREE.MeshLambertMaterial({color:0x222222}));bo.position.set(x,.3,z);staticGroup.add(bo);}
-  addGate(38.8,30,6,'z');
+  flatQuad(46,6,deck,61,.05,30);
+  {const steel=new THREE.MeshLambertMaterial({color:0x5a6068}),rust=new THREE.MeshLambertMaterial({color:0x6a4a34});
+   for(const z of [27.1,32.9]){solidMesh(45,.12,.12,steel,61.5,1.05,z);solidMesh(45,.1,.1,steel,61.5,.55,z);for(let x=39.5;x<84;x+=3)solidMesh(.12,1.05,.12,steel,x,.52,z);}
+   for(const x of [47,70]){for(const z of [26.6,33.4])solidMesh(.6,9.5,.6,rust,x,3.2,z);solidMesh(.5,.6,7.4,rust,x,7.7,30);
+     for(const z of [26.6,33.4])for(const d of [-1,1]){const c=solidMesh(.08,11,.08,steel,x+d*4.6,4.2,z);c.rotation.z=d*.92;}}}
+  addGate(38.8,30,6,'z');addPanel(37.2,25.9);
+  markExit(EVAC.x,EVAC.z,'ISLAND',5,5.6);
+  solidMesh(.14,3.2,.14,new THREE.MeshLambertMaterial({color:0x333333}),37.6,1.6,34);addSign('ISLAND',37.6,3.1,34,0);
+  addMetroArrival(START.x+1,START.z+4.2); // north-east of the start, where the perimeter wall does not hide it
   // quay edge
   const kerb=new THREE.Mesh(new THREE.BoxGeometry(.4,.25,114),new THREE.MeshLambertMaterial({color:0x5a5a52}));kerb.position.set(37.8,.12,0);staticGroup.add(kerb);
   // land blocks
@@ -4229,14 +4283,14 @@ function buildHarbor(){
 function buildFoothills(){
   srand(9091);world.lots=[];world.noWalls=true;
   // dirt road winding from the landing (south-west) up to the bunker (north-east)
-  const road=[[-50,-50],[-30,-44],[-18,-22],[-34,2],[-12,18],[8,4],[26,-14],[40,6],[22,26],[33,42]];
+  const road=[[-50,-50],[-30,-44],[-18,-22],[-34,2],[-12,18],[8,4],[26,-14],[40,6],[22,26],[33,42],[50,42]];
   const roadD=(x,z)=>{let m=1e9;for(let i=0;i<road.length-1;i++){const d=segDist(x,z,road[i][0],road[i][1],road[i+1][0],road[i+1][1])[0];if(d<m)m=d;}return m;};
   world.roadD=roadD;
   // height: a long climb towards the north-east plus rolling hills
   const raw=(x,z)=>3.2+11*ss(-48,46,(x+z)/2)+2.1*Math.sin(x*.085+1.3)*Math.cos(z*.07-.4)+1.3*Math.sin((x-z)*.055+.8);
   // level pads: the landing, the bunker yard and one per hamlet block, so buildings stand on flat ground
   const blocks=[[-33,-24],[-44,12],[-8,36],[8,-14],[38,-30],[-36,40],[-6,-44],[46,-6]];
-  const pads=[{x:START.x,z:START.z,r0:6,r1:16,h:raw(START.x,START.z)},{x:EVAC.x,z:EVAC.z,r0:12,r1:24,h:raw(EVAC.x,EVAC.z)}];
+  const pads=[{x:START.x,z:START.z,r0:6,r1:16,h:raw(START.x,START.z)},{x:46,z:42,r0:13,r1:25,h:raw(46,42)}];
   for(const [bx,bz] of blocks)pads.push({x:bx,z:bz,r0:10,r1:21,h:raw(bx,bz)});
   world.terrFn=(x,z)=>{let h=raw(x,z),a=1,sw=0,sh=0;
     // weighted blend so that neighbouring pads merge smoothly instead of forming a cliff between them
@@ -4267,11 +4321,24 @@ function buildFoothills(){
   const wmat=TEX.water?new THREE.MeshLambertMaterial({map:TEX.water.clone(),color:0x9ab0c0,emissive:0x061420}):new THREE.MeshLambertMaterial({color:0x0c1d2a,emissive:0x04101a});
   if(TEX.water){wmat.map.needsUpdate=true;wmat.map.wrapS=wmat.map.wrapT=THREE.RepeatWrapping;wmat.map.repeat.set(30,30);}
   const water=new THREE.Mesh(new THREE.PlaneGeometry(210,210),wmat);water.rotation.x=-Math.PI/2;water.position.set(20,-1.2,20);staticGroup.add(water);world.water=water;
-  // bunker entrance inside a walled yard, the gate faces west (down the road)
-  addExit(EVAC.x,EVAC.z,'BUNKER');
-  {const cx=EVAC.x,cz=EVAC.z,wc={color:0xb0aaa4,kind:'wall',tex:['concrete_wall',1/4]};
-   addBox(cx,cz-7.2,15,.7,5,wc);addBox(cx,cz+7.2,15,.7,5,wc);addBox(cx+7.2,cz,.7,13.7,5,wc);
-   addBox(cx-7.2,cz-4.6,.7,4.5,5,wc);addBox(cx-7.2,cz+4.6,.7,4.5,5,wc);addGate(cx-7.2,cz,4.7,'z');}
+  // the mine lift in a cave mouth under the mountain wall; the cage door faces west (down the road)
+  {const cx=EVAC.x,cz=EVAC.z,ty=terr(cx,cz);
+   const rk={color:0x8f8b84,kind:'wall',tex:['concrete_wall',1/3]};
+   addBox(cx+.1,cz-2.75,6.2,.9,5,rk);addBox(cx+.1,cz+2.75,6.2,.9,5,rk);addBox(cx+3.4,cz,.9,6.4,6.5,{...rk,noFade:true});
+   const black=new THREE.MeshBasicMaterial({color:0x020202});const mouth=new THREE.Mesh(new THREE.PlaneGeometry(4.6,4.6),black);mouth.rotation.y=-Math.PI/2;mouth.position.set(cx+2.9,ty+2.3,cz);staticGroup.add(mouth);
+   const rg=new THREE.DodecahedronGeometry(1,0),rm=TEX.concrete_wall?texLambert('concrete_wall',1/3,0x7f7b74):new THREE.MeshLambertMaterial({color:0x5a5852});
+   for(const [ox,oy,oz,sc] of [[4.2,2.4,-4.6,3.2],[4.4,2.2,4.8,3.4],[4.8,6.4,0,3.6],[5.4,5.2,-3,2.8],[5.6,5.6,3.2,3],[2,5.6,-3,1.3],[1.6,5.5,3.1,1.2]]){
+     const m=new THREE.Mesh(rg,rm);m.scale.set(sc,sc*.8,sc);m.position.set(cx+ox,ty+oy,cz+oz);m.rotation.y=ox*2.1;m.castShadow=m.receiveShadow=true;staticGroup.add(m);}
+   // the cage
+   const st=new THREE.MeshLambertMaterial({color:0x6a7078}),yl=new THREE.MeshLambertMaterial({color:0xb5862a});
+   solidMesh(3.4,.14,3.4,st,cx+.4,ty+.07,cz);
+   for(const dx of [-1.25,2.05])for(const dz of [-1.65,1.65])solidMesh(.12,3.5,.12,yl,cx+dx,ty+1.75,cz+dz);
+   solidMesh(3.5,.14,3.5,yl,cx+.4,ty+3.5,cz);solidMesh(.07,9,.07,new THREE.MeshBasicMaterial({color:0x111111}),cx+.4,ty+8,cz);
+   const wheel=new THREE.Mesh(new THREE.CylinderGeometry(.7,.7,.18,14),st);wheel.rotation.x=Math.PI/2;wheel.position.set(cx+.4,ty+4.4,cz);staticGroup.add(wheel);
+   addGate(cx-3,cz,4.6,'z');addPanel(cx-3.6,cz+3.3);
+   markExit(cx,cz,'LIFT',3.2,3.2);
+   solidMesh(.14,3.2,.14,new THREE.MeshLambertMaterial({color:0x333333}),cx-3.6,ty+1.6,cz-3.4);addSign('MINE LIFT',cx-3.6,ty+3.1,cz-3.4,0);}
+  addBridgeArrival();
   // hamlets: houses with climbable roofs, ruins, a survivor camp
   const kinds=['h2','h4','ruin','h4','camp','h2','h1','h4'];
   blocks.forEach(([cx,cz],bi)=>{const k=kinds[bi],by=terr(cx,cz);world.lots.push([cx-7.5,cz-7.5,15,15]);
@@ -4291,7 +4358,7 @@ function buildFoothills(){
       if(p<.4){if(sl<.09)addCar(x,z,alongX);}
       else if(p<.6)addBox(x,z,alongX?.5:3,alongX?3:.5,.9,{color:0x6a5a3a,check:.6,avoidStart:true,kind:'barricade'});
       else if(p<.8)addBox(x,z,1.6,1.6,1,{color:0x6a5236,check:.6,avoidStart:true,kind:'crate'});
-      else if(Math.hypot(x-START.x,z-START.z)>14)addFire(x,z,.6,fires.length<12);}}
+      else if(Math.hypot(x-START.x,z-START.z)>14&&Math.hypot(x-EVAC.x,z-EVAC.z)>12)addFire(x,z,.6,fires.length<12);}}
   const clearOf=(x,z,m)=>roadD(x,z)>m&&pads.every(p=>Math.hypot(x-p.x,z-p.z)>p.r0+2);
   // boulders: cover, and something to climb
   const rockMat=TEX.concrete_wall?texLambert('concrete_wall',1/3,0x8f8b84):new THREE.MeshLambertMaterial({color:0x5a5852});
@@ -4315,18 +4382,61 @@ function buildFoothills(){
   // forest on the mountain slopes outside the play area
   for(let i=0;i<110;i++){const x=rr(-57,95),z=rr(-57,95),H=rr(5,9);const mo=Math.max(x-HALF,z-HALF);if(mo<1.5||mo>38||terr(x,z)>24)continue;tree(x,z,H,false);}
 }
+// ---------- level links: metro stairs (1 -> 2), bridge (2 -> 3) ----------
+// level 1 exit: stairs down through the east perimeter wall, behind a grate
+function addMetroExit(){
+  const z=EVAC.z,wc={color:0xb0aaa4,kind:'wall',tex:['concrete_wall',1/4]};
+  world.gapE={z,w:4.7};
+  stairShaft(53.9,59,z,4.4,1);
+  addBox(55.2,z-2.6,3.6,.5,5,wc);addBox(55.2,z+2.6,3.6,.5,5,wc);
+  addGate(53.4,z,4.7,'z');addPanel(52.9,z+3.3);
+  markExit(EVAC.x,z,'METRO',3,4.2,1.7);
+  solidMesh(.14,3.2,.14,new THREE.MeshLambertMaterial({color:0x333333}),52.9,1.6,z-3.3);addSign('METRO',52.9,3.1,z-3.3,0);
+}
+// level 2 start: the metro stairs you came up, caving in behind you
+function addMetroArrival(x,z){
+  stairShaft(x-1.7,x+1.7,z,4.4,-1);
+  addBox(x,z,3.8,5,.9,{invisible:true,kind:'rubble',noFade:true});
+  const parts=[],rubble=[],pm=new THREE.MeshLambertMaterial({color:0x3a3d42}),rf=new THREE.MeshLambertMaterial({color:0x39423e});
+  const part=(m,delay,rest,fx,fz)=>{Object.assign(m.userData,{delay,rest,fx,fz,rx:R(-1.5,1.5),rz:R(-1.5,1.5)});parts.push(m);return m;};
+  [[-1.6,-2.2],[1.6,-2.2],[-1.6,2.2],[1.6,2.2]].forEach(([ox,oz],i)=>{const m=part(solidMesh(.14,2.7,.14,pm,x+ox,1.35,z+oz),.9+i*.12,.1,Math.PI/2,R(-.4,.4));m.userData.rx=R(1,2);});
+  part(solidMesh(3.2,.16,2.1,rf,x-.2,2.78,z-1.3),1.15,.75,.42,-.3);part(solidMesh(3.2,.16,2.3,rf,x+.3,2.78,z+1.2),1.3,.6,-.5,.22);
+  part(addSign('METRO',x+1.9,2.3,z,0),1,1.15,0,Math.PI/2);
+  const rg=new THREE.DodecahedronGeometry(1,0),rm=TEX.concrete_wall?texLambert('concrete_wall',1/3,0x8f8b84):new THREE.MeshLambertMaterial({color:0x5a5852});
+  for(let i=0;i<14;i++){const m=new THREE.Mesh(rg,rm);const sc=R(.6,1.25);m.position.set(x+R(-1.7,1.7),sc*.35,z+R(-2.4,2.4));m.rotation.set(R(0,3),R(0,3),R(0,3));m.castShadow=true;
+    m.userData.s1=new THREE.Vector3(sc,sc*.7,sc);m.userData.delay=.8+i*.06;m.visible=false;staticGroup.add(m);rubble.push(m);}
+  addCollapse({x,y:0,z,sx:1.8,sz:2.4,dur:2.6,floor:0,parts,rubble,msg:'The stairwell caves in behind you – there is no way back.'});
+}
+// level 3 start: the bridge you crossed, tearing loose and dropping into the bay
+function addBridgeArrival(){
+  const z=START.z,by=terr(START.x,z),xe=START.x-5.5;
+  const deck=TEX.wood_deck?texLambert('wood_deck',1/3,0xb8a898):new THREE.MeshLambertMaterial({color:0x4a3b2c}),steel=new THREE.MeshLambertMaterial({color:0x5a6068}),rust=new THREE.MeshLambertMaterial({color:0x6a4a34});
+  const span=(x0,len)=>{const g=new THREE.Group();g.position.set(x0-len/2,by-.1,z);solidMesh(len,.3,6,deck,0,0,0,g);
+    for(const dz of [-2.9,2.9]){solidMesh(len,.12,.12,steel,0,1.2,dz,g);solidMesh(.12,1.2,.12,steel,-len/2+.3,.6,dz,g);solidMesh(.12,1.2,.12,steel,len/2-.3,.6,dz,g);}
+    staticGroup.add(g);return g;};
+  span(xe,5.2); // the stub that stays on the shore
+  const parts=[];
+  for(let k=0;k<7;k++){const g=span(xe-5.2-k*5,5);Object.assign(g.userData,{delay:.9+(6-k)*.22,rx:R(-.5,.5),rz:R(-.9,.9)});parts.push(g);}
+  for(const [px,dl] of [[xe-12,1.9],[xe-27,1.2]]){const g=new THREE.Group();g.position.set(px,by,z);
+    for(const dz of [-3.4,3.4])solidMesh(.6,by+9,.6,rust,0,-(by+9)/2+4.2,dz,g);solidMesh(.5,.6,7.4,rust,0,3.6,0,g);
+    staticGroup.add(g);Object.assign(g.userData,{delay:dl,rx:R(-.2,.2),rz:-.7});parts.push(g);}
+  addCollapse({x:xe-4,y:by,z,sx:3,sz:3,dur:3,sink:-9,water:-1.2,parts,rubble:[],msg:'The bridge tears loose behind you – there is no way back.'});
+}
 // ---------- level table + world (re)building ----------
 const LEVELS=[
-  {n:1,name:'The Burning District',build:buildCity,start:{x:-52,z:-52},evac:{x:42,z:42},parts:5,zombies:42,inf:90,cap:48,runners:.24,fog:0x050507,evacClear:11,out:'slipped down into the metro'},
-  {n:2,name:'The Harbor',build:buildHarbor,start:{x:-52,z:-50},evac:{x:53.5,z:30},parts:6,zombies:52,inf:75,cap:58,runners:.34,fog:0x04060a,evacClear:8,out:'took the last ferry across the bay'},
-  {n:3,name:'The Foothills',build:buildFoothills,start:{x:-50,z:-50},evac:{x:42,z:42},parts:6,zombies:56,inf:70,cap:62,runners:.4,fog:0x05070a,evacClear:11,out:'reached the bunker under the mountains'}
+  {n:1,name:'The Burning District',build:buildCity,start:{x:-52,z:-52},evac:{x:55.9,z:42},parts:5,zombies:42,inf:90,cap:48,runners:.24,fog:0x050507,evacClear:9,out:'slipped down into the metro',
+   item:{many:'fuses',found:'Fuse found',hud:'Fuses',dev:'the gate panel',goal:'they power the grate over the metro stairs',open:'The grate rolls up – down the stairs!'}},
+  {n:2,name:'The Harbor',build:buildHarbor,start:{x:-52,z:-50},evac:{x:53.5,z:30},parts:6,zombies:52,inf:75,cap:58,runners:.34,fog:0x04060a,evacClear:8,out:'crossed the bridge to the island',
+   item:{many:'winch parts',found:'Winch part found',hud:'Parts',dev:'the bridge control',goal:'they open the barrier on the bridge',open:'The barrier lifts – get across the bridge!'}},
+  {n:3,name:'The Foothills',build:buildFoothills,start:{x:-50,z:-50},evac:{x:54.5,z:42},parts:6,zombies:56,inf:70,cap:62,runners:.4,fog:0x05070a,evacClear:11,out:'rode the lift down into the mountain',
+   item:{many:'lift parts',found:'Lift part found',hud:'Parts',dev:'the lift control',goal:'they get the mine lift running',open:'The cage door rolls up – into the lift!'}}
 ];
 function resetWorld(){
   while(staticGroup.children.length)staticGroup.remove(staticGroup.children[0]);
   for(const f of fires)scene.remove(f.g);fires.length=0;
   boxes.length=0;fadeMeshes.length=0;buildingsLow.length=0;ruinPlots.length=0;stackQueue.length=0;
   if(world.beam){scene.remove(world.beam);scene.remove(world.evacLight);world.beam=null;}
-  world.gate=null;world.water=null;world.exit=null;world.terrFn=null;world.roadD=null;world.noWalls=false;
+  world.gate=null;world.water=null;world.exit=null;world.panel=null;world.collapse=null;world.gapE=null;world.terrFn=null;world.roadD=null;world.noWalls=false;
   if(typeof _boxMeshes!=='undefined')_boxMeshes=null;
 }
 function buildLevel(n){
@@ -4666,7 +4776,9 @@ function startLevel(n,fresh,opts){opts=opts||{};
   showScreen(null);$('hud').style.display='block';$('crosshair').style.display=touchMode?'none':'block';canvas.style.cursor=touchMode?'default':'none';
   updateGangHud();
   if(!opts.fallen)msg(`Level ${n}: ${L.name}`,3,'#f0a33a');
-  setTimeout(()=>{if(game.state==='playing')msg(`Find the ${L.parts} radio parts – then break through the gate to the exit`,3.5,'#5ad1ff');},2200);
+  $('radioK').textContent=L.item.hud;
+  if(world.collapse){if(opts.fallen)finishCollapse();else resetCollapse();}
+  setTimeout(()=>{if(game.state==='playing')msg(`Find the ${L.parts} ${L.item.many} – ${L.item.goal}`,3.5,'#5ad1ff');},opts.fallen?2200:4600);
   if(n===1&&!opts.fallen)setTimeout(()=>{if(game.state==='playing')msg(touchMode?'Tip: Climb rooftops via crates and cars (CLIMB) – Walkers can’t follow.':'Tip: Click a rooftop next to a crate or container to climb – Walkers can’t follow. From up there you see more of the map.',4);},6500);
 }
 
@@ -4880,8 +4992,7 @@ function updatePlayer(dt){
     if(touchMode&&touch.melee&&p.meleeCd<=0){if(!p.touchAiming)meleeAssist(p);melee();}
     if(!touchMode&&atkInRange&&p.meleeCd<=0)melee();
     // auto-attack: hit the closest zombie in reach (unless shooting)
-    if(world.gate&&!world.gate.broken){world.gate.warnT-=dt;if(p.meleeCd<=0&&gateDist(p)<c.melee.range-.2&&game.radio.have>=game.radio.need&&!nearestZombie(p,c.melee.range)){const b=world.gate.b;p.face=Math.atan2(clamp(p.x,b.x0,b.x1)-p.x,clamp(p.z,b.z0,b.z1)-p.z);melee();}
-      else if(gateDist(p)<.9&&game.radio.have<game.radio.need&&world.gate.warnT<=0){msg(`Locked. Find all radio parts – ${game.radio.have}/${game.radio.need}`,2.2,'#f0a33a');world.gate.warnT=4;}}
+    if(world.gate&&!world.gate.broken){world.gate.warnT-=dt;if(gateDist(p)<.9)gateWarn();}
     if(p.meleeCd<=0&&!(mouse.r||keys['f'])&&!(touchMode&&p.touchAiming)){const az=nearestZombie(p,c.melee.range);
       if(az){p.face=Math.atan2(az.x-p.x,az.z-p.z);melee();if(p.moveT&&Math.hypot(p.moveT.x-az.x,p.moveT.z-az.z)<1.6)p.moveT=null;}}
     if((mouse.r||keys['f']||(touchMode&&p.touchAiming&&game.ammo>0))&&p.shootCd<=0)shoot();
@@ -4899,8 +5010,8 @@ function updatePlayer(dt){
   for(let i=pickups.length-1;i>=0;i--){const k=pickups[i];if(Math.hypot(k.x-p.x,k.z-p.z)<1.1&&Math.abs(k.y-p.y)<1){
     if(k.type==='med'&&p.hp>=c.hp)continue;
     if(k.type==='radio'){game.radio.have++;const R2=game.radio;
-      if(R2.have>=R2.need){msg('Radio repaired! Survivors on the radio guide you out – break through the gate to the exit',4,'#7fe39a');tone(400,1600,.6,.3,'triangle');setTimeout(()=>tone(1600,800,.4,.25,'triangle'),300);}
-      else msg(`Radio part found – ${R2.have}/${R2.need}`,2,'#5ad1ff');}
+      if(R2.have>=R2.need){msg(`That’s all the ${LEVELS[game.level-1].item.many}! Take them to ${LEVELS[game.level-1].item.dev}`,4,'#7fe39a');tone(400,1600,.6,.3,'triangle');setTimeout(()=>tone(1600,800,.4,.25,'triangle'),300);}
+      else msg(`${LEVELS[game.level-1].item.found} – ${R2.have}/${R2.need}`,2,'#5ad1ff');}
     else if(k.type==='ammo'){game.ammo+=8;msg('+8 ammo',1.2,'#f0c040');}
     else if(k.type==='serum'){game.serums++;msg('Serum found!',1.8,'#9be35a');}
     else{p.hp=Math.min(c.hp,p.hp+50);msg('+50 health',1.2,'#ff8080');}
@@ -4975,9 +5086,9 @@ function makeHeli(){
 }
 function updateExit(dt){
   const p=player;if(!p||!world.exit)return;world.exitWarnT-=dt;
-  world.exit.glow.material.opacity=.14+Math.sin(game.time*4)*.07;
-  if(Math.hypot(p.x-EVAC.x,p.z-EVAC.z)<2.3&&p.y<(world.exit.y||0)+1){const RD=game.radio;
-    if(RD.have<RD.need){if(world.exitWarnT<=0){msg(`You can’t leave yet – find all radio parts (${RD.have}/${RD.need})`,2.4,'#f0a33a');world.exitWarnT=3;}}
+  world.exit.glow.material.opacity=.14+Math.sin(game.time*4)*.07;updatePanel(dt);
+  if(Math.hypot(p.x-EVAC.x,p.z-EVAC.z)<world.exit.r&&p.y<(world.exit.y||0)+1){const RD=game.radio;
+    if(RD.have<RD.need){if(world.exitWarnT<=0){msg(`You can’t leave yet – find all ${LEVELS[game.level-1].item.many} (${RD.have}/${RD.need})`,2.4,'#f0a33a');world.exitWarnT=3;}}
     else if(p.infected){if(world.exitWarnT<=0){msg('You’re infected – cure yourself with serum before you go on',2.6,'#9be35a');world.exitWarnT=3;}}
     else levelDone();}
 }
@@ -5022,7 +5133,7 @@ function updateEnv(dt){
   muzzle.intensity*=Math.pow(.0001,dt);boomLight.intensity*=Math.pow(.005,dt);
   if(tracer.visible){tracer.userData.t-=dt;if(tracer.userData.t<=0)tracer.visible=false;}
   for(const k of pickups){k.t+=dt;if(k.m.userData.led)k.m.userData.led.visible=Math.sin(k.t*8)>0;k.m.rotation.y+=dt*1.5;k.m.position.y=k.y+.15+Math.sin(k.t*3)*.08;k.ring.material.opacity=.35+Math.sin(k.t*4)*.25;}
-  if(world.gate&&world.gate.broken)for(const m of world.gate.meshes){const f=m.userData.fall;if(!f||m.position.y<-1)continue;f.vy-=G*dt;m.position.x-=f.vx*dt;m.position.z-=f.vz*dt;const fl=(world.gate.ty||0)+.05;m.position.y=Math.max(fl,m.position.y+f.vy*dt);if(m.position.y<=fl){f.vx*=.8;f.vz*=.8;f.vy=0;}else{m.rotation.x+=f.rx*dt;m.rotation.z+=f.rz*dt;}}
+  updateGate(dt);updateCollapse(dt);
   if(world.water){world.water.material.emissive.setHSL(.58,.6,.03+Math.sin(game.time*.7)*.01);const mp=world.water.material.map;if(mp){mp.offset.x=Math.sin(game.time*.15)*.08;mp.offset.y=game.time*.012;}}
   if(world.beam){world.beam.material.opacity=.1+Math.sin(game.time*3)*.05;world.evacLight.intensity=2+Math.sin(game.time*5)*.8;}
 }
@@ -5066,9 +5177,10 @@ function updateHud(){
     const b=Math.round(inf*20)/10;if(b!==lastBlur){lastBlur=b;canvas.style.filter=b>0?`blur(${(b*1.6).toFixed(1)}px) saturate(${(1-b*.6).toFixed(2)})`:'none';}
     const RD=game.radio||{have:0,need:5},done=RD.have>=RD.need,gateUp=world.gate&&!world.gate.broken;
     let tgt=null;
-    if(done){tgt=gateUp?{x:world.gate.x,z:world.gate.z}:{x:EVAC.x,z:EVAC.z};}
+    const IT=LEVELS[game.level-1].item;
+    if(done){tgt=gateUp&&world.panel?{x:world.panel.x,z:world.panel.z}:{x:EVAC.x,z:EVAC.z};}
     else{let bd=1e9;for(const k of pickups)if(k.type==='radio'&&isDisc(k.x,k.z)){const d=Math.hypot(k.x-p.x,k.z-p.z);if(d<bd){bd=d;tgt=k;}}}
-    $('objTxt').textContent=!done?`Find radio parts – ${RD.have}/${RD.need}. They show on the map once you’ve seen the area.`:gateUp?'Radio fixed! Break through the gate to the exit.':p.infected?'You’re infected – cure yourself before you can leave.':`Get to the exit – ${Math.round(Math.hypot(p.x-EVAC.x,p.z-EVAC.z))} m away.`;
+    $('objTxt').textContent=!done?`Find the ${IT.many} – ${RD.have}/${RD.need}. They show on the map once you’ve seen the area.`:gateUp?`You have every part. Power ${IT.dev} to open the grate.`:p.infected?'You’re infected – cure yourself before you can leave.':`Get to the exit – ${Math.round(Math.hypot(p.x-EVAC.x,p.z-EVAC.z))} m away.`;
     // arrow
     const v=new THREE.Vector3(tgt?tgt.x:0,(tgt?terr(tgt.x,tgt.z):0)+1,tgt?tgt.z:0).project(camera);
     const sx=(v.x+1)/2*innerWidth,sy=(1-v.y)/2*innerHeight;const off=sx<30||sx>innerWidth-30||sy<30||sy>innerHeight-30;
