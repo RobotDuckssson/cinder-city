@@ -4429,106 +4429,121 @@ function addBridgeArrival(){
 // ---------- Level 4: the deep station – two platforms, a track trench, a dead train and no power ----------
 function buildStation(){
   srand(7117);world.lots=[];world.noWalls=true;world.indoor=true;
-  const TZ=6,TD=1.1,TRK=3.9; // trench half-width and depth, track centre line
-  world.terrFn=(x,z)=>{const d=TZ-Math.abs(z);return d<=0?0:d>=.35?-TD:-TD*d/.35;};
+  // Plan: a block of rooms and corridors in the west (x < PX0); two doorways lead east onto an island
+  // platform (|z| < PZ) with a track trench on either side. Everything else is solid rock.
+  const PX0=-22,PZ=9,TW=6.5,TD=1.1,TRK=11.2,WZ=40; // platform start, half-width; trench width, depth; track line; half-height of the west block
+  const trench=(x,z)=>{const az=Math.abs(z);return Math.min(az-PZ,PZ+TW-az,x-PX0);};
+  world.terrFn=(x,z)=>{const d=trench(x,z);return d<=0?0:d>=.35?-TD:-TD*d/.35;};
   hemi.intensity=.78;moon.intensity=.42;
   world.torch=new THREE.PointLight(0xffe2b0,1.7,15,2);staticGroup.add(world.torch); // the survivor's lamp
   const M=(k,sc,col)=>TEX[k]?texLambert(k,sc,col):new THREE.MeshLambertMaterial({color:col&0x7f7f7f});
   const floorM=M('metro_platform_floor',1/5,0xffffff),bedM=M('metro_track_bed',1/5,0xf0f0f0),concM=M('metro_tunnel_concrete',1/6,0xf0f0f0),gratM=M('metal_grating',1/3,0xa0a0a0);
   const fq=(x0,x1,z0,z1,mat,y)=>{const m=flatQuad(x1-x0,z1-z0,mat,(x0+x1)/2,y||0,(z0+z1)/2);m.receiveShadow=true;return m;};
-  fq(-59,59,-20.4,-TZ,floorM);fq(-59,59,TZ,20.4,floorM);fq(-59,59,-59,-20.4,concM);fq(-59,59,20.4,59,floorM);
-  fq(-59,59,-TZ,TZ,bedM,-TD);
-  {const w=new THREE.Mesh(new THREE.PlaneGeometry(118,TD+.02),concM);w.position.set(0,-TD/2,TZ-.17);w.rotation.y=Math.PI;staticGroup.add(w);}
+  const PL=59-PX0,PC=(59+PX0)/2; // platform length and centre
+  fq(-59,PX0,-WZ-1,WZ+1,concM);fq(PX0,59,-PZ,PZ,floorM);fq(-31,-24,-59,-WZ-1,concM);
+  for(const sg of [-1,1])fq(PX0,59,sg>0?PZ:-PZ-TW,sg>0?PZ+TW:-PZ,bedM,-TD);
+  {const w=new THREE.Mesh(new THREE.PlaneGeometry(PL,TD+.02),concM);w.position.set(PC,-TD/2,-PZ-.17);w.rotation.y=Math.PI;staticGroup.add(w);}
   // yellow line along both platform edges
-  if(TEX.decal_platform_edge){const t=TEX.decal_platform_edge.clone();t.needsUpdate=true;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(118/5,1);
+  if(TEX.decal_platform_edge){const t=TEX.decal_platform_edge.clone();t.needsUpdate=true;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(PL/5,1);
     const em=new THREE.MeshLambertMaterial({map:t,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-4});
-    for(const sgn of [-1,1])flatQuad(118,.55,em,0,.03,sgn*(TZ+.55));}
-  // tracks: sleepers, running rails and the third rail
+    for(const sg of [-1,1])flatQuad(PL,.55,em,PC,.03,sg*(PZ-.6));}
+  // tracks: sleepers, running rails and the third rail (on the platform side)
   const steel=new THREE.MeshLambertMaterial({color:0x6a6e74}),wood=new THREE.MeshLambertMaterial({color:0x3a2c22});
   const railM=new THREE.MeshLambertMaterial({color:0x8a7a4a,emissive:0x000000});
-  const sg=new THREE.BoxGeometry(.28,.12,2.4),sl=new THREE.InstancedMesh(sg,wood,2*96),mx=new THREE.Matrix4();let si=0;
-  for(const tz of [-TRK,TRK])for(let i=0;i<96;i++){mx.makeTranslation(-57+i*1.2,-TD+.06,tz);sl.setMatrixAt(si++,mx);}
+  const NS=Math.floor(PL/1.2),sl=new THREE.InstancedMesh(new THREE.BoxGeometry(.28,.12,2.4),wood,2*NS),mx=new THREE.Matrix4();let si=0;
+  for(const tz of [-TRK,TRK])for(let i=0;i<NS;i++){mx.makeTranslation(PX0+.8+i*1.2,-TD+.06,tz);sl.setMatrixAt(si++,mx);}
   sl.receiveShadow=true;staticGroup.add(sl);
-  for(const tz of [-TRK,TRK])for(const o of [-.75,.75])solidMesh(118,.14,.1,steel,0,-TD+.19,tz+o);
+  for(const tz of [-TRK,TRK])for(const o of [-.75,.75])solidMesh(PL,.14,.1,steel,PC,-TD+.19,tz+o);
   world.rails=[];world.railY=-TD;world.railM=railM;world.zapT=0;
-  for(const sgn of [-1,1]){const z=sgn*(TRK-2);solidMesh(118,.2,.16,railM,0,-TD+.22,z);world.rails.push({z});}
-  // outer walls: tiled north wall, tunnel wall to the east with the two tunnel mouths
-  const tile={tex:['metro_wall_tiles',1/2.5],color:0xc8c8c8,kind:'wall'},conc={tex:['metro_tunnel_concrete',1/5],color:0xb0b0b0,kind:'wall'};
-  addBox(0,57.9,118,1,6,{...tile,noFade:true,base:0});addBox(57.9,0,1,118,6,{...conc,noFade:true,base:0});
-  {const pm=new THREE.Mesh(new THREE.PlaneGeometry(2*TZ-.6,5.4),new THREE.MeshBasicMaterial({color:0x010101}));pm.rotation.y=-Math.PI/2;pm.position.set(57.35,-TD+2.7,0);staticGroup.add(pm);
-   solidMesh(.5,.5,2*TZ+.6,steel,57.3,4.5,0);}
-  // walls between the platforms and the back rooms, with doorways
-  const wallX=(x0,x1,z,gaps,o)=>{let a=x0;for(const g of gaps.concat([[x1,x1]])){if(g[0]-a>.5)addBox((a+g[0])/2,z,g[0]-a,.8,4.4,o||tile);a=g[1];}};
-  const wallZ=(x,z0,z1,gaps,o)=>{let a=z0;for(const g of gaps.concat([[z1,z1]])){if(g[0]-a>.5)addBox(x,(a+g[0])/2,.8,g[0]-a,4.4,o||tile);a=g[1];}};
-  wallX(-57,57,20.4,[[-37,-32],[-3,3],[32,37]]);wallX(-57,57,-20.4,[[-43,-38],[-9,-4],[26,31]]);
-  wallZ(-22.4,20.8,57,[[36,41]]);wallZ(22.4,20.8,57,[[27,32]]);
-  wallZ(-22.4,-57,-20.8,[[-42,-37]],conc);wallZ(20,-57,-20.8,[[-34,-29]],conc);
-  // columns down both platforms, each with a light fitting
+  for(const sg of [-1,1]){const z=sg*(PZ+.75);solidMesh(PL,.2,.16,railM,PC,-TD+.22,z);world.rails.push({z,x0:PX0});}
+  for(const tz of [-TRK,TRK])solidMesh(.5,1.1,2.6,new THREE.MeshLambertMaterial({color:0x8a2a1a}),PX0+.9,-TD+.55,tz); // buffer stops: the line ends here
+  // solid rock around the station
+  const rock=(x0,x1,z0,z1)=>addBox((x0+x1)/2,(z0+z1)/2,x1-x0,z1-z0,30,{invisible:true,noFade:true,kind:'void',base:0});
+  rock(-58,58,WZ+.8,58);rock(PX0+.4,58,PZ+TW+.8,WZ+.8);rock(-58,-31.4,-58,-WZ-.4);rock(-23.6,58,-58,-WZ-.4);rock(PX0+.4,58,-WZ-.4,-PZ-TW-.4);
+  // walls
+  const tile={tex:['metro_wall_tiles',1/2.5],color:0xd0d0d0,kind:'wall'},conc={tex:['metro_tunnel_concrete',1/5],color:0xc0c0c0,kind:'wall'};
+  const wallX=(x0,x1,z,gaps,o)=>{let a=x0;for(const g of (gaps||[]).concat([[x1,x1]])){if(g[0]-a>.5)addBox((a+g[0])/2,z,g[0]-a,.8,4.4,o||tile);a=g[1];}};
+  const wallZ=(x,z0,z1,gaps,o)=>{let a=z0;for(const g of (gaps||[]).concat([[z1,z1]])){if(g[0]-a>.5)addBox(x,(a+g[0])/2,.8,g[0]-a,4.4,o||tile);a=g[1];}};
+  addBox(PC,PZ+TW+.5,PL,1,6.1,{...tile,noFade:true,base:-TD}); // far wall behind the north track
+  addBox(-40,WZ+.5,36,1,5,{...conc,noFade:true,base:0});          // north wall of the west block
+  addBox(58,0,1,2*(PZ+TW)+2,6.1,{...conc,noFade:true,base:-TD}); // east end with the tunnel mouths
+  for(const sg of [-1,1]){const pm=new THREE.Mesh(new THREE.PlaneGeometry(TW-.5,4.9),new THREE.MeshBasicMaterial({color:0x010101}));pm.rotation.y=-Math.PI/2;pm.position.set(57.45,-TD+2.45,sg*(PZ+TW/2));staticGroup.add(pm);}
+  // the west block meets the platform: two doorways, the rest is wall
+  wallZ(PX0-.4,-WZ,WZ,[[-7,-3],[3,7]]);
+  wallZ(-23.6,-57,-WZ,[],conc); // east side of the dead-end passage
+  // three rooms down the middle of the west block, corridors all around them
+  const room=(x0,x1,z0,z1,d,o)=>{wallX(x0,x1,z1,d.n?[d.n]:[],o);wallX(x0,x1,z0,d.s?[d.s]:[],o);wallZ(x0,z0,z1,d.w?[d.w]:[],o);wallZ(x1,z0,z1,d.e?[d.e]:[],o);};
+  room(-46,-32,18,32,{s:[-41,-37]},conc);            // switchboard room
+  room(-46,-32,-7,7,{w:[-2,2],e:[-2,2]});             // storage, open at both ends
+  room(-46,-32,-32,-18,{n:[-41,-37],e:[-27,-23]});   // lift lobby: where you arrive
+  // columns and light fittings
   const lampM=new THREE.MeshBasicMaterial({color:0x15181a});world.lampM=lampM;
-  for(let x=-45;x<=45;x+=10)for(const z of [-13,13]){if(Math.hypot(x-START.x,z-START.z)<6)continue;
-    addBox(x,z,.9,.9,4.2,{tex:['metro_wall_tiles',1/2],color:0xc0c0c0,kind:'pillar'});solidMesh(2.6,.12,.22,lampM,x,3.7,z-.6);}
-  for(let x=-50;x<=50;x+=12.5){solidMesh(2.6,.12,.2,lampM,x,3.9,19.8);solidMesh(2.6,.12,.2,lampM,x,3.9,57.2);}
+  for(let x=-14;x<=52;x+=11)for(const z of [-6,6]){addBox(x,z,.9,.9,4.2,{tex:['metro_wall_tiles',1/2],color:0xc0c0c0,kind:'pillar'});solidMesh(2.6,.12,.22,lampM,x,3.7,z-.6);}
+  for(let x=-16;x<=52;x+=11)solidMesh(2.6,.12,.2,lampM,x,3.9,PZ+TW-.1);
+  for(const [x,z] of [[-27,-30],[-27,-12],[-27,12],[-27,30],[-51,-22],[-51,0],[-51,22],[-39,12.5],[-39,-12.5],[-39,36],[-39,-36]])solidMesh(.22,.12,2.6,lampM,x,3.9,z);
   // emergency lighting until the power is back, then the real lights
   world.redL=[];world.whiteL=[];
-  for(const [x,z] of [[-36,13],[8,13],[40,-13],[-12,-13],[0,40],[-40,-40]]){const l=new THREE.PointLight(0xff3020,2.2,24,2);l.position.set(x,3.6,z);staticGroup.add(l);world.redL.push(l);
+  for(const [x,z] of [[-27,0],[-39,-12.5],[-39,36],[-5,0],[24,0],[48,0]]){const l=new THREE.PointLight(0xff3020,2.2,24,2);l.position.set(x,3.6,z);staticGroup.add(l);world.redL.push(l);
     solidMesh(.3,.2,.3,new THREE.MeshBasicMaterial({color:0xff3020}),x,3.9,z);}
-  for(const [x,z] of [[-30,10],[10,10],[42,10],[-30,-10],[14,-10],[0,38]]){const l=new THREE.PointLight(0xcfe0ff,0,30,2);l.position.set(x,5,z);staticGroup.add(l);world.whiteL.push(l);}
-  // the train that still stands at the north platform
+  for(const [x,z] of [[-8,0],[14,0],[36,0],[54,0],[-28,18],[-28,-18]]){const l=new THREE.PointLight(0xcfe0ff,0,32,2);l.position.set(x,5,z);staticGroup.add(l);world.whiteL.push(l);}
+  // the train at the north side of the platform
   const mkCar=(cx,tz,tint)=>{const b=addBox(cx,tz,16,2.9,3.85,{invisible:true,kind:'train'});
     const side=new THREE.MeshLambertMaterial(TEX.train_side?{map:TEX.train_side,color:tint,emissive:0x000000,emissiveMap:TEX.train_side}:{color:0x7a7a72});
     const body=new THREE.MeshLambertMaterial({color:new THREE.Color(tint).multiplyScalar(.45)}),roof=new THREE.MeshLambertMaterial({color:new THREE.Color(tint).multiplyScalar(.35)});
     const mats=[body,body,roof,body,side,side];const m=new THREE.Mesh(new THREE.BoxGeometry(16,3.5,2.9),mats);m.position.set(cx,-TD+.35+1.75,tz);m.castShadow=m.receiveShadow=true;staticGroup.add(m);
     const und=solidMesh(14.6,.5,2.3,new THREE.MeshLambertMaterial({color:0x121212}),cx,-TD+.25,tz);
     b.mesh.userData.fadeMats=[side,body,roof];return {b,side,m,und,x0:cx};};
-  world.cars=[];for(const cx of [0,16.8,33.6])world.cars.push(mkCar(cx,TRK,0xffffff));
-  flatQuad(2.4,1.5,gratM,EVAC.x,.035,TZ-.55);
+  world.cars=[];for(const cx of [4,20.8,37.6])world.cars.push(mkCar(cx,TRK,0xffffff));
+  flatQuad(2.4,1.4,gratM,EVAC.x,.035,PZ+.3);
   markExit(EVAC.x,EVAC.z,'TRAIN',2.6,2.2,1.5);
-  addSign('TRAIN',EVAC.x+2.6,3.2,19.6,Math.PI/2);
-  world.headL=new THREE.PointLight(0xfff0c0,0,26,2);world.headL.position.set(43.5,1.2,TRK);staticGroup.add(world.headL);
+  world.headX=46.2;world.headL=new THREE.PointLight(0xfff0c0,0,26,2);world.headL.position.set(world.headX,1.2,TRK);staticGroup.add(world.headL);
   // a burnt-out car on the south track
-  {const c=mkCar(-28,-TRK,0x4a4038);addFire(-18.5,-TRK,.9);}
-  // the switchboard room in the north-east corner
-  addPanel(52,54.6);
-  {const cab={color:0x4a5a52,kind:'cabinet'};for(const x of [40,43.2,46.4])addBox(x,56.4,2.6,1.2,2.4,cab);for(const z of [40,43.6,47.2])addBox(56.4,z,1.2,2.8,2.4,cab);
-   addBox(36,46,5,2.2,1,{color:0x3a4048,kind:'cabinet'});addSign('POWER',31,3.2,56.9,Math.PI/2);}
-  // ticket hall: turnstiles and kiosks
-  for(const x of [-16,-10,-4,4,10,16])addBox(x,30,2.6,.5,.95,{color:0x6a7078,kind:'turnstile'});
-  addBox(-12,44,4.2,3,2.9,{color:0x3d5a4a,kind:'kiosk'});addBox(11,47,4.2,3,2.9,{color:0x5a3d3d,kind:'kiosk'});
-  addSign('PLATFORMS',0,3.3,20.9,Math.PI/2);
-  // posters and leaks on the tiled walls
+  mkCar(30,-TRK,0x4a4038);addFire(19.6,-TRK,.9);
+  // kiosks down the middle of the platform
+  addBox(-2,0,4.2,3.4,2.9,{color:0x3d5a4a,kind:'kiosk'});addBox(19,0,4.2,3.4,2.9,{color:0x5a3d3d,kind:'kiosk'});addBox(40,0,4.2,3.4,2.9,{color:0x3d4a5a,kind:'kiosk'});
+  // the switchboard
+  addPanel(-34,30.9);
+  {const cab={color:0x4a5a52,kind:'cabinet'};for(const z of [20.6,23.8,27])addBox(-44.6,z,1.2,2.8,2.4,cab);addBox(-41,30.8,3.2,1.2,2.4,cab);}
+  addSign('POWER',-39,3.3,17.4,Math.PI/2);addSign('TRAINS',PX0-.9,3.3,-5,0);addSign('TRAINS',PX0-.9,3.3,5,0);
+  // posters and leaks
   const wallDecal=(key,x,y,z,w,h,ry,op)=>{const dm=decalMat(key,op);if(!dm)return;const q=new THREE.Mesh(new THREE.PlaneGeometry(w,h),dm);q.position.set(x,y,z);q.rotation.y=ry;staticGroup.add(q);};
-  for(const x of [-46,-20,14,44])wallDecal('decal_posters',x,2.3,19.96,4.2,2.7,Math.PI,.95);
-  for(const x of [-52,-28,-12,22,38,50])wallDecal('decal_leak',x+rr(-2,2),2.6,57.36,rr(3,5),3.6,Math.PI,.9);
-  for(const z of [-40,-22,18,34,48])wallDecal('decal_leak',57.36,2.8,z+rr(-2,2),rr(3,5),3.8,-Math.PI/2,.9);
+  for(const x of [-14,10,31,50])wallDecal('decal_posters',x,2.6,PZ+TW-.04,4.2,2.7,Math.PI,.95);
+  for(const x of [-18,-2,22,44,54])wallDecal('decal_leak',x+rr(-2,2),2.4,PZ+TW-.05,rr(3,5),4.4,Math.PI,.9);
+  for(const x of [-52,-44,-30])wallDecal('decal_leak',x+rr(-1,1),2.6,WZ-.05,rr(3,5),3.8,Math.PI,.9);
+  wallDecal('decal_posters',PX0-.85,2.4,0,4.2,2.7,-Math.PI/2,.95);
   // the lift you came down in
-  addLiftArrival(START.x-5,START.z);
+  addLiftArrival(START.x-4.4,START.z);
+  // a cave-in closes the west end of the north corridor
+  {const rg=new THREE.DodecahedronGeometry(1,0),rm=TEX.metro_tunnel_concrete?texLambert('metro_tunnel_concrete',1/3,0x9a9a9a):new THREE.MeshLambertMaterial({color:0x5a5852});
+   addBox(-53.5,36.5,6,6.5,2.6,{invisible:true,kind:'rubble',noFade:true});
+   for(let i=0;i<16;i++){const m=new THREE.Mesh(rg,rm),sc=rr(.8,1.9);m.scale.set(sc,sc*.75,sc);m.position.set(-53.5+rr(-2.6,2.6),sc*.4+rr(0,1.2),36.5+rr(-2.8,2.8));m.rotation.set(rr(0,3),rr(0,3),rr(0,3));m.castShadow=true;staticGroup.add(m);}}
   // clutter: crates, barriers, benches and bin fires
-  const inTrench=z=>Math.abs(z)<TZ+1.4;
-  for(let k=0;k<80;k++){const x=rr(-54,54),z=rr(-54,54);if(inTrench(z)||Math.hypot(x-52,z-52)<7)continue;const q=rnd();
-    if(q<.45)addBox(x,z,1.6,1.6,1,{color:0x6a5236,check:.7,avoidStart:true,kind:'crate'});
-    else if(q<.7){const al=rnd()<.5;addBox(x,z,al?.5:3,al?3:.5,.9,{color:0x6a5a3a,check:.7,avoidStart:true,kind:'barricade'});}
-    else if(q<.88){const al=rnd()<.5;addBox(x,z,al?.7:2.4,al?2.4:.7,.38,{color:0x4a4038,check:.7,avoidStart:true,kind:'bench'});}
-    else if(fires.length<9&&Math.hypot(x-START.x,z-START.z)>12&&!overlaps(x-1.5,x+1.5,z-1.5,z+1.5,.5))addFire(x,z,.6,fires.length<7);}
-  for(let k=0;k<10;k++){const x=rr(-54,54),sgn=rnd()<.5?-1:1;addBox(x,sgn*rr(1,5),1.6,1.6,1,{color:0x6a5236,check:.6,kind:'crate'});}
+  for(let k=0;k<130;k++){const x=rr(-55,55),z=rr(-55,55);if(trench(x,z)>-1.2||Math.hypot(x-EVAC.x,z-EVAC.z)<5)continue;const q=rnd();
+    if(Math.abs(z)<8&&x>-36&&x<-18)continue; // keep the two doorways and the way to them clear
+    if(q<.42)addBox(x,z,1.6,1.6,1,{color:0x6a5236,check:.9,avoidStart:true,kind:'crate'});
+    else if(q<.62){const al=rnd()<.5;addBox(x,z,al?.5:3,al?3:.5,.9,{color:0x6a5a3a,check:.9,avoidStart:true,kind:'barricade'});}
+    else if(q<.84){const al=rnd()<.5;addBox(x,z,al?.7:2.4,al?2.4:.7,.38,{color:0x4a4038,check:.9,avoidStart:true,kind:'bench'});}
+    else if(fires.length<9&&Math.hypot(x-START.x,z-START.z)>12&&!overlaps(x-1.5,x+1.5,z-1.5,z+1.5,.6))addFire(x,z,.6,fires.length<7);}
+  for(let k=0;k<12;k++){const sg=rnd()<.5?-1:1;addBox(rr(-18,54),sg*(TRK+rr(-.6,.6)),1.6,1.6,1,{color:0x6a5236,check:.6,kind:'crate'});}
   // when the switchboard has power: lights, a live third rail and a train that hums
   world.onPower=()=>{world.live=true;lampM.color.setHex(0xe6eeff);for(const l of world.whiteL)l.intensity=2.4;for(const l of world.redL)l.intensity=0;
     hemi.intensity=1.2;moon.intensity=.75;world.torch.intensity=.6;railM.emissive.setHex(0x1a3a8a);world.headL.intensity=2.4;
     for(const c of world.cars)c.side.emissive.setHex(0x3a3a30);
-    setTimeout(()=>{if(game.state==='playing'&&world.live)msg('The third rail is live now – jump over it, don’t step on it',4,'#8ab4ff');},3600);};
+    setTimeout(()=>{if(game.state==='playing'&&world.live)msg('The third rail is live now – stay out of the track beds',4,'#8ab4ff');},3600);};
 }
 // arcing third rail: harmless until the power is on, then it burns whatever stands on it
 function updateStation(dt){
   const w=world;if(!w.rails)return;const p=player;if(p&&w.torch)w.torch.position.set(p.x,p.y+2.4,p.z);
   if(!w.live)return;w.zapT-=dt;
-  if(w.leaving!==null){w.leaving+=dt;const d=w.leaving*w.leaving*2.4;for(const c of w.cars){c.m.position.x=c.x0+d;c.und.position.x=c.x0+d;}w.headL.position.x=43.5+d;game.shake=Math.max(game.shake,.15);
+  if(w.leaving!==null){w.leaving+=dt;const d=w.leaving*w.leaving*2.4;for(const c of w.cars){c.m.position.x=c.x0+d;c.und.position.x=c.x0+d;}w.headL.position.x=w.headX+d;game.shake=Math.max(game.shake,.15);
     if(p){p.invuln=9;p.x=EVAC.x;p.z=EVAC.z;}if(w.leaving>2.6){w.leaving=null;levelDone();}return;}
   for(const r of w.rails){
-    if(Math.random()<dt*6){const x=(p?p.x:0)+R(-22,22);glow.emit(x,w.railY+.35,r.z,R(-1.5,1.5),R(1,3.5),R(-1.5,1.5),.25,0x9ac4ff,8);}
-    if(p&&p.invuln<=0&&Math.abs(p.z-r.z)<.42&&p.y<w.railY+.45){p.hp-=60*dt;$('hurtOv').style.opacity=Math.max(+$('hurtOv').style.opacity||0,.5);
+    if(Math.random()<dt*6){const x=Math.max(r.x0+1,(p?p.x:0)+R(-22,22));glow.emit(x,w.railY+.35,r.z,R(-1.5,1.5),R(1,3.5),R(-1.5,1.5),.25,0x9ac4ff,8);}
+    if(p&&p.invuln<=0&&p.x>r.x0&&Math.abs(p.z-r.z)<.42&&p.y<w.railY+.45){p.hp-=60*dt;$('hurtOv').style.opacity=Math.max(+$('hurtOv').style.opacity||0,.5);
       for(let k=0;k<3;k++)glow.emit(p.x,p.y+.4,p.z,R(-3,3),R(1,5),R(-3,3),.3,0x9ac4ff,8);
       if(w.zapT<=0){w.zapT=1.2;msg('The rail is live!',1,'#8ab4ff');tone(110,60,.3,.5,'sawtooth');nz(.3,4000,.4,'highpass');game.shake=Math.max(game.shake,.3);}
       if(p.hp<=0){loseChar('dead');return;}}
-    for(const z of zombies){if(z.dead||Math.abs(z.z-r.z)>.42||z.y>w.railY+.45)continue;z.hp-=45*dt;
+    for(const z of zombies){if(z.dead||z.x<r.x0||Math.abs(z.z-r.z)>.42||z.y>w.railY+.45)continue;z.hp-=45*dt;
       if(Math.random()<dt*10)glow.emit(z.x,z.y+.5,z.z,R(-3,3),R(1,5),R(-3,3),.3,0x9ac4ff,8);if(z.hp<=0)killZombie(z);}}
 }
 // level 4 start: the lift drops the last metres and the shaft comes down after it
@@ -4555,7 +4570,7 @@ const LEVELS=[
    item:{many:'winch parts',found:'Winch part found',hud:'Parts',dev:'the bridge control',goal:'they open the barrier on the bridge',open:'The barrier lifts – get across the bridge!'}},
   {n:3,name:'The Foothills',build:buildFoothills,start:{x:-50,z:-50},evac:{x:54.5,z:42},parts:6,zombies:56,inf:70,cap:62,runners:.4,fog:0x05070a,evacClear:11,out:'rode the lift down into the mountain',
    item:{many:'lift parts',found:'Lift part found',hud:'Parts',dev:'the lift control',goal:'they get the mine lift running',open:'The cage door rolls up – into the lift!'}},
-  {n:4,name:'The Deep Station',build:buildStation,start:{x:-47,z:-46},evac:{x:12.8,z:6.9},parts:6,zombies:58,inf:65,cap:64,runners:.42,fog:0x020203,evacClear:6,out:'got the train rolling into the dark',
+  {n:4,name:'The Deep Station',build:buildStation,start:{x:-38,z:-25},evac:{x:16.8,z:7.9},parts:6,zombies:58,inf:65,cap:64,runners:.42,fog:0x020203,evacClear:6,out:'got the train rolling into the dark',
    item:{many:'breakers',found:'Breaker found',hud:'Breakers',dev:'the switchboard',todo:'to get the train running',goal:'they bring the power back so the train can run',open:'The power is back – get to the train!'}}
 ];
 function resetWorld(){
@@ -5032,7 +5047,7 @@ const _rc=new THREE.Raycaster();let _boxMeshes=null;
 function mouseRay(){_rc.setFromCamera(new THREE.Vector2(mouse.x/innerWidth*2-1,-(mouse.y/innerHeight)*2+1),camera);return _rc.ray;}
 function cursorTarget(){
   const ray=mouseRay();
-  if(!_boxMeshes){_boxMeshes=boxes.map(b=>{b.mesh.userData.box=b;return b.mesh;});}
+  if(!_boxMeshes){_boxMeshes=boxes.filter(b=>b.kind!=='void').map(b=>{b.mesh.userData.box=b;return b.mesh;});}
   _rc.far=400;const hits=_rc.intersectObjects(_boxMeshes,false);
   for(const h of hits){const b=h.object.userData.box;if(!b||b.h>=20)continue; // skip perimeter-ish giants
     if(h.face&&h.face.normal.y>.5)return {x:h.point.x,z:h.point.z,box:b};break;}
@@ -5425,7 +5440,7 @@ function buildMinimapBase(){
     g.fillStyle=world.roadD&&world.roadD(x,z)<2.5?'#4a4338':`rgb(${Math.round(22+k*34)},${Math.round(34+k*40)},${Math.round(24+k*26)})`;g.fillRect(i*2*MS,j*2*MS,2*MS,2*MS);}}
   g.fillStyle='#2a2930';for(const [x,z,w,d] of (world.lots||[]))g.fillRect(P(x),P(z),w*MS,d*MS);
   g.fillStyle='#0e2433';for(const b of boxes)if(b.kind==='water')g.fillRect(P(b.x0),P(b.z0),(b.x1-b.x0)*MS,(b.z1-b.z0)*MS);
-  for(const b of boxes){const w=b.x1-b.x0,d=b.z1-b.z0;if(w>100||d>100||b.kind==='water')continue;
+  for(const b of boxes){const w=b.x1-b.x0,d=b.z1-b.z0;if(w>100||d>100||b.kind==='water'||b.kind==='void')continue;
     const bh=b.h-(b.base||0);
     g.fillStyle=b.kind==='gate'?'#ff4030':b.kind==='wall'?'#77706a':b.kind==='train'?'#4a6a8a':b.kind==='tree'?'#122a18':b.kind==='rock'?'#7a766e':b.low?'#9a744c':bh>=8?'#5d5966':bh>=5?'#5a5048':bh>=2.5?'#4f6a7e':'#55524e';
     g.fillRect(P(b.x0),P(b.z0),w*MS,d*MS);
