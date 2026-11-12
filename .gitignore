@@ -1,0 +1,4 @@
+# Character source models: 48-60 MB each and not used by the game (it embeds reduced versions in index.html)
+models/firefighetr.glb
+models/runner_girl.glb
+models/zombie_runner.glb
