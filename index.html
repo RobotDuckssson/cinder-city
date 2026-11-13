@@ -4692,7 +4692,7 @@ function skinChar(geo,A){
     // arm weight: inside capsule around shoulder->hand, fading into the torso near the shoulder
     let armW=ss(r+.018,r-.008,dA)*ss(0,.1,t+.04);
     // only parts actually connected along the arm (stops thighs next to the hands from being dragged along)
-    if(armW>0){const g=(x>=0?gL:gR);if(g){const v=G.id[i];const e=Math.hypot(ax-hx,y-hy,P.getZ(i)-hz)+.03;armW*=ss(2.3,1.6,g[v]/e);}}
+    if(armW>0){const g=(x>=0?gL:gR);if(g){const v=G.id[i];const e=Math.hypot(ax-hx,y-hy,P.getZ(i)-hz)+.03;if(g[v]<1e8)armW*=ss(2.3,1.6,g[v]/e);}} // loose shells (fingers, cuffs) have no path to the hand: the capsule alone decides
     const legW=(1-armW)*ss(.56,.46,y)*(y>.33?ss(.0,.04,ax):1);
     const torso=1-armW-legW;
     if(armW>0){const fore=ss(.42,.58,t);add(side?6:4,armW*(1-fore));add(side?7:5,armW*fore);}
@@ -4700,6 +4700,21 @@ function skinChar(geo,A){
     if(torso>0){const head=ss(.82,.87,y),spine=ss(.54,.62,y);add(3,torso*head);add(2,torso*(1-head)*spine);add(1,torso*(1-head)*(1-spine));}
     const ent=Object.entries(w).sort((a,b)=>b[1]-a[1]).slice(0,4);let s=0;for(const e of ent)s+=e[1];
     ent.forEach((e,k)=>{si[i*4+k]=+e[0];sw[i*4+k]=e[1]/s;});}
+  // webbing: triangles that tie the forearm or hand to something that does not follow the arm (a hand resting on the
+  // thigh, fingers outside the capsule). Close neighbours join the arm, the rest of those triangles are cut away,
+  // otherwise they stretch into flaps hanging from the arm as soon as it moves.
+  if(geo.index){const ix=geo.index.array;
+    const armOf=i=>{let a=0;for(let k=0;k<4;k++){const b=si[i*4+k];if(b>=4&&b<=7)a+=sw[i*4+k];}return a;};
+    const onArm=i=>segDist(Math.abs(P.getX(i)),P.getY(i),sx,sy,hx,hy-.12);
+    for(const margin of [.02,.035]){const copy=[];
+      for(let t=0;t<ix.length;t+=3){const tri=[ix[t],ix[t+1],ix[t+2]],aw=tri.map(armOf),hi=aw.indexOf(Math.max(...aw));
+        if(aw[hi]<.8||onArm(tri[hi])[1]<.45)continue;
+        for(let k=0;k<3;k++)if(aw[k]<.4&&onArm(tri[k])[0]<r+margin&&(P.getX(tri[k])>=0)===(P.getX(tri[hi])>=0))copy.push(tri[k],tri[hi]);}
+      for(let c=0;c<copy.length;c+=2)for(let k=0;k<4;k++){si[copy[c]*4+k]=si[copy[c+1]*4+k];sw[copy[c]*4+k]=sw[copy[c+1]*4+k];}}
+    const keep=[];
+    for(let t=0;t<ix.length;t+=3){const tri=[ix[t],ix[t+1],ix[t+2]],aw=tri.map(armOf),hi=aw.indexOf(Math.max(...aw));
+      if(aw[hi]>=.8&&Math.min(...aw)<.4&&onArm(tri[hi])[1]>=.45)continue;keep.push(tri[0],tri[1],tri[2]);}
+    A.webCut=(ix.length-keep.length)/3;if(A.webCut)geo.setIndex(keep);}
   geo.setAttribute('skinIndex',new THREE.Uint16BufferAttribute(si,4));geo.setAttribute('skinWeight',new THREE.Float32BufferAttribute(sw,4));
 }
 function buildRig(geo,A,mat){
