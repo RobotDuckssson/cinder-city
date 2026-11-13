@@ -4468,7 +4468,7 @@ function buildStation(){
   addBox(58,0,1,2*(PZ+TW)+2,6.1,{...conc,noFade:true,base:-TD}); // east end with the tunnel mouths
   for(const sg of [-1,1]){const pm=new THREE.Mesh(new THREE.PlaneGeometry(TW-.5,4.9),new THREE.MeshBasicMaterial({color:0x010101}));pm.rotation.y=-Math.PI/2;pm.position.set(57.45,-TD+2.45,sg*(PZ+TW/2));staticGroup.add(pm);}
   // the rock meets the platform: two tunnel mouths, the rest is wall
-  wallZ(PX0-.4,-58,58,[[-7,-3],[3,7]]);
+  wallZ(PX0-.4,-PZ-TW,PZ+TW+1,[[-7,-3],[3,7]]);rock(PX0-.8,PX0+.4,-58,-PZ-TW);rock(PX0-.8,PX0+.4,PZ+TW+1,58);
   // the tunnels: [x0,x1,z0,z1]. Everything else west of the platform is rock. Drawn as a cutaway: the far
   // wall of every tunnel stands full height, the camera side is left open, and between the tunnels there is only black void.
   const TUN=[[-53,-26.1,-29.9,-26.1],[-29.9,-26.1,-29.9,-3.1],[-29.9,-22.8,-6.9,-3.1], // lift -> east -> north -> platform
@@ -4478,12 +4478,15 @@ function buildStation(){
     [-53.9,-26.1,28.1,31.9],[-53.9,-50.1,10,31.9],[-29.9,-26.1,16,31.9]];              // north: switchboard leg and a dead end
   {const open=(x,z)=>TUN.some(t=>x>t[0]&&x<t[1]&&z>t[2]&&z<t[3]),num=(a,b)=>a-b;
    const xs=[...new Set([-58,PX0-.8].concat(...TUN.map(t=>[t[0],t[1]])))].sort(num),zs=[...new Set([-58,58].concat(...TUN.map(t=>[t[2],t[3]])))].sort(num);
-   const slab={...conc,noFade:true,base:0};
+   const slab={...conc,noFade:true,base:0},low={...conc,base:0};
    for(let j=0;j<zs.length-1;j++){const z0=zs[j],z1=zs[j+1],zc=(z0+z1)/2;let run=null;
      for(let i=0;i<xs.length-1;i++){const x0=xs[i],x1=xs[i+1],xc=(x0+x1)/2,o=open(xc,zc);
        if(!o){if(run)run[1]=x1;else run=[x0,x1];}
        if((o||i===xs.length-2)&&run){rock(run[0],run[1],z0,z1);run=null;}
        if(o){fq(x0,x1,z0,z1,concM);
+         // half-height walls on the camera side, so the floor does not just end in the void
+         if(i>0&&!open((xs[i-1]+x0)/2,zc))addBox(x0-.25,zc,.5,z1-z0,1.1,low);
+         if(j>0&&!open(xc,(zs[j-1]+z0)/2))addBox(xc-.25,z0-.25,x1-x0+.5,.5,1.1,low);
          if(i<xs.length-2&&!open((xs[i+1]+xs[i+2])/2,zc))addBox(x1+.25,zc,.5,z1-z0,4.4,slab);
          if(j<zs.length-2&&!open(xc,(zs[j+1]+zs[j+2])/2))addBox(xc+.25,z1+.25,x1-x0+.5,.5,4.4,slab);}}}
    for(const t of TUN)world.lots.push([t[0],t[2],t[1]-t[0],t[3]-t[2]]);world.lots.push([PX0,-PZ,PL,2*PZ]);}
