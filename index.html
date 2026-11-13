@@ -4440,7 +4440,7 @@ function buildStation(){
   const floorM=M('metro_platform_floor',1/5,0xffffff),bedM=M('metro_track_bed',1/5,0xf0f0f0),concM=M('metro_tunnel_concrete',1/6,0xf0f0f0),gratM=M('metal_grating',1/3,0xa0a0a0);
   const fq=(x0,x1,z0,z1,mat,y)=>{const m=flatQuad(x1-x0,z1-z0,mat,(x0+x1)/2,y||0,(z0+z1)/2);m.receiveShadow=true;return m;};
   const PL=59-PX0,PC=(59+PX0)/2; // platform length and centre
-  fq(-59,PX0,-50,50,concM);fq(PX0,59,-PZ,PZ,floorM);
+  fq(PX0,59,-PZ,PZ,floorM);for(const z of [-5,5])fq(PX0-.8,PX0,z-2,z+2,concM);
   for(const sg of [-1,1])fq(PX0,59,sg>0?PZ:-PZ-TW,sg>0?PZ+TW:-PZ,bedM,-TD);
   {const w=new THREE.Mesh(new THREE.PlaneGeometry(PL,TD+.02),concM);w.position.set(PC,-TD/2,-PZ-.17);w.rotation.y=Math.PI;staticGroup.add(w);}
   // yellow line along both platform edges
@@ -4470,7 +4470,7 @@ function buildStation(){
   // the rock meets the platform: two tunnel mouths, the rest is wall
   wallZ(PX0-.4,-58,58,[[-7,-3],[3,7]]);
   // the tunnels: [x0,x1,z0,z1]. Everything else west of the platform is rock. Drawn as a cutaway: the far
-  // wall of every tunnel stands full height, the rock on the camera side is cut low so the floor stays visible.
+  // wall of every tunnel stands full height, the camera side is left open, and between the tunnels there is only black void.
   const TUN=[[-53,-26.1,-29.9,-26.1],[-29.9,-26.1,-29.9,-3.1],[-29.9,-22.8,-6.9,-3.1], // lift -> east -> north -> platform
     [-41.9,-38.1,-46,44],[-41.9,-22.8,3.1,6.9],                                        // the long tunnel and its branch to the platform
     [-41.9,-26.1,-17.9,-14.1],                                                         // cross link
@@ -4478,12 +4478,12 @@ function buildStation(){
     [-53.9,-26.1,28.1,31.9],[-53.9,-50.1,10,31.9],[-29.9,-26.1,16,31.9]];              // north: switchboard leg and a dead end
   {const open=(x,z)=>TUN.some(t=>x>t[0]&&x<t[1]&&z>t[2]&&z<t[3]),num=(a,b)=>a-b;
    const xs=[...new Set([-58,PX0-.8].concat(...TUN.map(t=>[t[0],t[1]])))].sort(num),zs=[...new Set([-58,58].concat(...TUN.map(t=>[t[2],t[3]])))].sort(num);
-   const rockM=M('metro_tunnel_concrete',1/6,0x3a3a3c),slab={...conc,noFade:true,base:0};
+   const slab={...conc,noFade:true,base:0};
    for(let j=0;j<zs.length-1;j++){const z0=zs[j],z1=zs[j+1],zc=(z0+z1)/2;let run=null;
      for(let i=0;i<xs.length-1;i++){const x0=xs[i],x1=xs[i+1],xc=(x0+x1)/2,o=open(xc,zc);
        if(!o){if(run)run[1]=x1;else run=[x0,x1];}
-       if((o||i===xs.length-2)&&run){rock(run[0],run[1],z0,z1);solidMesh(run[1]-run[0],1.3,z1-z0,rockM,(run[0]+run[1])/2,.65,zc);run=null;}
-       if(o){
+       if((o||i===xs.length-2)&&run){rock(run[0],run[1],z0,z1);run=null;}
+       if(o){fq(x0,x1,z0,z1,concM);
          if(i<xs.length-2&&!open((xs[i+1]+xs[i+2])/2,zc))addBox(x1+.25,zc,.5,z1-z0,4.4,slab);
          if(j<zs.length-2&&!open(xc,(zs[j+1]+zs[j+2])/2))addBox(xc+.25,z1+.25,x1-x0+.5,.5,4.4,slab);}}}
    for(const t of TUN)world.lots.push([t[0],t[2],t[1]-t[0],t[3]-t[2]]);world.lots.push([PX0,-PZ,PL,2*PZ]);}
