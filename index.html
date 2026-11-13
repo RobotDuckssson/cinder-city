@@ -4307,7 +4307,8 @@ function buildFoothills(){
   // ground mesh, coloured per vertex: grass, dirt road, packed yards, bare rock, snow
   const X0=-80,X1=122,N=Math.round((X1-X0)/1.5);
   const tg=new THREE.PlaneGeometry(X1-X0,X1-X0,N,N);tg.rotateX(-Math.PI/2);tg.translate((X0+X1)/2,0,(X0+X1)/2);
-  const P=tg.attributes.position,col=new Float32Array(P.count*3);
+  const P=tg.attributes.position,col=new Float32Array(P.count*3),tw=new Float32Array(P.count*3);
+  const painted=!!(TEX.grass_ground&&TEX.rock_cliff&&TEX.rubble_ground);
   for(let i=0;i<P.count;i++){const x=P.getX(i),z=P.getZ(i),h=terr(x,z);P.setY(i,h);
     const sl=Math.hypot(terr(x+.7,z)-terr(x-.7,z),terr(x,z+.7)-terr(x,z-.7))/1.4;
     const n=.9+.1*Math.sin(x*1.7+z*.9)*Math.sin(z*1.3-x*.4);
@@ -4317,9 +4318,24 @@ function buildFoothills(){
     for(const p of pads)mix(.66,.62,.56,(1-ss(p.r0-2,p.r0+2,Math.hypot(x-p.x,z-p.z)))*.8);
     mix(.6,.6,.64,ss(.45,.8,sl));
     mix(1,1,1,ss(20,27,h));
+    if(painted){ // the painted textures carry the colour: weights for rock / dirt / snow, and only a light tint per vertex
+      const kd=Math.max(1-ss(1.6,3,roadD(x,z)),...pads.map(p=>(1-ss(p.r0-2,p.r0+2,Math.hypot(x-p.x,z-p.z)))*.8)),kr=ss(.45,.8,sl);
+      tw[i*3]=kr;tw[i*3+1]=kd;tw[i*3+2]=ss(20,27,h);
+      r=n*lerp(1,1.15,kd);g=n*lerp(1,1.02,kd);b=n*lerp(1,.84,kd);}
     col[i*3]=r;col[i*3+1]=g;col[i*3+2]=b;}
   tg.setAttribute('color',new THREE.BufferAttribute(col,3));tg.computeVertexNormals();
-  const gm=TEX.rubble_ground?texLambert('rubble_ground',1/6,0xffffff):new THREE.MeshLambertMaterial({color:0x777777});gm.vertexColors=true;
+  tg.setAttribute('tw',new THREE.BufferAttribute(tw,3));
+  let gm;
+  if(painted){ // grass, with rock on the steep faces, dirt on the road and yards, and snow up high
+    gm=new THREE.MeshLambertMaterial({color:0xffffff,map:TEX.grass_ground});
+    gm.onBeforeCompile=sh=>{sh.uniforms.tRock={value:TEX.rock_cliff};sh.uniforms.tDirt={value:TEX.rubble_ground};
+      sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nattribute vec3 tw;varying vec3 vTW;varying vec3 vWP;varying vec3 vWN;')
+        .replace('#include <worldpos_vertex>','#include <worldpos_vertex>\nvTW=tw;vWP=(modelMatrix*vec4(transformed,1.0)).xyz;vWN=normalize(mat3(modelMatrix)*objectNormal);');
+      sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vTW;varying vec3 vWP;varying vec3 vWN;uniform sampler2D tRock;uniform sampler2D tDirt;')
+        .replace('#include <map_fragment>','vec3 bw=pow(abs(normalize(vWN)),vec3(4.0));bw/=(bw.x+bw.y+bw.z);vec4 tG=texture2D(map,vWP.xz*0.14);vec4 tD=texture2D(tDirt,vWP.xz*0.1667);vec4 tR=texture2D(tRock,vWP.zy*0.11)*bw.x+texture2D(tRock,vWP.xz*0.11)*bw.y+texture2D(tRock,vWP.xy*0.11)*bw.z;vec4 texelColor=mix(mix(tG,tD,clamp(vTW.y,0.0,1.0)),tR,clamp(vTW.x,0.0,1.0));texelColor.rgb=mix(texelColor.rgb,vec3(0.93),clamp(vTW.z,0.0,1.0));texelColor=mapTexelToLinear(texelColor);diffuseColor*=texelColor;');};
+    gm.customProgramCacheKey=()=>'terrain3';}
+  else gm=TEX.rubble_ground?texLambert('rubble_ground',1/6,0xffffff):new THREE.MeshLambertMaterial({color:0x777777});
+  gm.vertexColors=true;
   const ground=new THREE.Mesh(tg,gm);ground.receiveShadow=true;staticGroup.add(ground);
   // the bay behind you
   const wmat=TEX.water?new THREE.MeshLambertMaterial({map:TEX.water.clone(),color:0x9ab0c0,emissive:0x061420}):new THREE.MeshLambertMaterial({color:0x0c1d2a,emissive:0x04101a});
@@ -4327,10 +4343,10 @@ function buildFoothills(){
   const water=new THREE.Mesh(new THREE.PlaneGeometry(210,210),wmat);water.rotation.x=-Math.PI/2;water.position.set(20,-1.2,20);staticGroup.add(water);world.water=water;
   // the mine lift in a cave mouth under the mountain wall; the cage door faces west (down the road)
   {const cx=EVAC.x,cz=EVAC.z,ty=terr(cx,cz);
-   const rk={color:0x8f8b84,kind:'wall',tex:['concrete_wall',1/3]};
+   const rk={color:0xb0aca6,kind:'wall',tex:[TEX.rock_cliff?'rock_cliff':'concrete_wall',1/4]};
    addBox(cx+.1,cz-2.75,6.2,.9,5,rk);addBox(cx+.1,cz+2.75,6.2,.9,5,rk);addBox(cx+3.4,cz,.9,6.4,6.5,{...rk,noFade:true});
    const black=new THREE.MeshBasicMaterial({color:0x020202});const mouth=new THREE.Mesh(new THREE.PlaneGeometry(4.6,4.6),black);mouth.rotation.y=-Math.PI/2;mouth.position.set(cx+2.9,ty+2.3,cz);staticGroup.add(mouth);
-   const rg=new THREE.DodecahedronGeometry(1,0),rm=TEX.concrete_wall?texLambert('concrete_wall',1/3,0x7f7b74):new THREE.MeshLambertMaterial({color:0x5a5852});
+   const rg=new THREE.DodecahedronGeometry(1,0),rm=TEX.rock_cliff?texLambert('rock_cliff',1/4,0xa8a49e):TEX.concrete_wall?texLambert('concrete_wall',1/3,0x7f7b74):new THREE.MeshLambertMaterial({color:0x5a5852});
    for(const [ox,oy,oz,sc] of [[4.2,2.4,-4.6,3.2],[4.4,2.2,4.8,3.4],[4.8,6.4,0,3.6],[5.4,5.2,-3,2.8],[5.6,5.6,3.2,3],[2,5.6,-3,1.3],[1.6,5.5,3.1,1.2]]){
      const m=new THREE.Mesh(rg,rm);m.scale.set(sc,sc*.8,sc);m.position.set(cx+ox,ty+oy,cz+oz);m.rotation.y=ox*2.1;m.castShadow=m.receiveShadow=true;staticGroup.add(m);}
    // the cage
@@ -4365,7 +4381,7 @@ function buildFoothills(){
       else if(Math.hypot(x-START.x,z-START.z)>14&&Math.hypot(x-EVAC.x,z-EVAC.z)>12)addFire(x,z,.6,fires.length<12);}}
   const clearOf=(x,z,m)=>roadD(x,z)>m&&pads.every(p=>Math.hypot(x-p.x,z-p.z)>p.r0+2);
   // boulders: cover, and something to climb
-  const rockMat=TEX.concrete_wall?texLambert('concrete_wall',1/3,0x8f8b84):new THREE.MeshLambertMaterial({color:0x5a5852});
+  const rockMat=TEX.rock_cliff?texLambert('rock_cliff',1/4,0xb4b0aa):TEX.concrete_wall?texLambert('concrete_wall',1/3,0x8f8b84):new THREE.MeshLambertMaterial({color:0x5a5852});
   const rockGeo=new THREE.DodecahedronGeometry(1,0);
   for(let i=0;i<70;i++){const x=rr(-54,54),z=rr(-54,54),w=rr(1.6,3.6),d=rr(1.6,3.6),h=rr(.8,2.9);if(!clearOf(x,z,3.2))continue;
     const b=addBox(x,z,w,d,h,{invisible:true,kind:'rock',check:.8,avoidStart:true});if(!b)continue;
