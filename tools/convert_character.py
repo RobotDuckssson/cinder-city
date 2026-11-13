@@ -73,11 +73,30 @@ atlas = Image.new('RGB', (2*VW, VH)); atlas.paste(bake(1), (0, 0)); atlas.paste(
 buf = io.BytesIO(); atlas.save(buf, 'JPEG', quality=86); jpg = buf.getvalue()
 atlas.save(dst.replace('.glb', '_atlas.jpg'), 'JPEG', quality=90)
 
+# vertices at the same position are one point of the surface, whatever their UVs
+_first = {}; WELD = {}
+for v in used:
+    p = NP[v]; k = (round(p[0]*2e4), round(p[1]*2e4), round(p[2]*2e4)); WELD[v] = _first.setdefault(k, v)
+print('welded points', len(_first))
 # ---- decimate by vertex clustering; search for the cell size that gives about `target` triangles
 def cluster(c):
+    # vertices only merge when they share a grid cell AND are connected inside it, so an arm resting
+    # against the body (or a hand against a thigh) is never welded to it
+    cell = {v: (math.floor(NP[v][0]/c), math.floor(NP[v][1]/c), math.floor(NP[v][2]/c)) for v in used}
+    par = dict(WELD)   # start from the position weld: the source mesh is split along its UV seams
+    def find(v):
+        r = v
+        while par[r] != r: r = par[r]
+        while par[v] != r: par[v], v = r, par[v]
+        return r
+    for (a, b, c2) in tris:
+        for p, q in ((a, b), (b, c2), (a, c2)):
+            if cell[p] == cell[q]:
+                rp, rq = find(p), find(q)
+                if rp != rq: par[rp] = rq
     cid = {}; sums = []; vmap = {}
     for v in used:
-        p = NP[v]; k = (math.floor(p[0]/c), math.floor(p[1]/c), math.floor(p[2]/c))
+        p = NP[v]; k = find(v)
         i = cid.get(k)
         if i is None: i = cid[k] = len(sums); sums.append([0, 0, 0, 0])
         s = sums[i]; s[0] += p[0]; s[1] += p[1]; s[2] += p[2]; s[3] += 1; vmap[v] = i
