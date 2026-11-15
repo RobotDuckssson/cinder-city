@@ -162,7 +162,7 @@
 <div id="menu" class="screen show">
   <h1>CINDER CITY</h1>
   <div class="sub">The bombs fell three weeks ago. The city is still burning. You and your crew are the last ones alive – and a single wound is all it takes to become one of <i>them</i>.</div>
-  <div class="modes"><div class="mode on">Campaign · 4 levels: The Burning District → The Harbor → The Foothills → The Deep Station</div><div class="mode off">Last Man Standing – coming soon</div></div>
+  <div class="modes"><div class="mode on">Campaign · 4 levels: The Burning District → The Deep Station → The Harbor → The Island</div><div class="mode off">Last Man Standing – coming soon</div></div>
   <div class="cards" id="cards"></div>
   <button class="big" id="startBtn">Head out</button>
   <div class="sub touchOnly" style="margin:12px 0 0;font-size:12px">Left thumb: move – push to the edge to sprint · Right thumb: aim and auto-fire · Buttons: melee, jump, climb, serum</div>
@@ -4202,6 +4202,7 @@ function addPerimeterAndBeacon(){
     const gp=world.gapE;if(!gp)addBox(HALF+1,0,2,120,5,wm);
     else{const a=gp.z-gp.w/2,b=gp.z+gp.w/2;addBox(HALF+1,(-60+a)/2,2,a+60,5,wm);addBox(HALF+1,(b+60)/2,2,60-b,5,wm);
       solidMesh(2,1.5,gp.w,texLambert('concrete_wall',1/4,0x8a8580),HALF+1,4.25,gp.z);}}
+  if(!world.exit)return; // a level without an exit (the island) has no beacon
   const ey=terr(EVAC.x,EVAC.z);
   const beam=new THREE.Mesh(new THREE.CylinderGeometry(.6,1.2,40,16,1,true),new THREE.MeshBasicMaterial({color:0x4dff7a,transparent:true,opacity:.14,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}));
   beam.position.set(EVAC.x,ey+20,EVAC.z);scene.add(beam);
@@ -4341,23 +4342,6 @@ function buildFoothills(){
   const wmat=TEX.water?new THREE.MeshLambertMaterial({map:TEX.water.clone(),color:0x9ab0c0,emissive:0x061420}):new THREE.MeshLambertMaterial({color:0x0c1d2a,emissive:0x04101a});
   if(TEX.water){wmat.map.needsUpdate=true;wmat.map.wrapS=wmat.map.wrapT=THREE.RepeatWrapping;wmat.map.repeat.set(30,30);}
   const water=new THREE.Mesh(new THREE.PlaneGeometry(210,210),wmat);water.rotation.x=-Math.PI/2;water.position.set(20,-1.2,20);staticGroup.add(water);world.water=water;
-  // the mine lift in a cave mouth under the mountain wall; the cage door faces west (down the road)
-  {const cx=EVAC.x,cz=EVAC.z,ty=terr(cx,cz);
-   const rk={color:0xb0aca6,kind:'wall',tex:[TEX.rock_cliff?'rock_cliff':'concrete_wall',1/4]};
-   addBox(cx+.1,cz-2.75,6.2,.9,5,rk);addBox(cx+.1,cz+2.75,6.2,.9,5,rk);addBox(cx+3.4,cz,.9,6.4,6.5,{...rk,noFade:true});
-   const black=new THREE.MeshBasicMaterial({color:0x020202});const mouth=new THREE.Mesh(new THREE.PlaneGeometry(4.6,4.6),black);mouth.rotation.y=-Math.PI/2;mouth.position.set(cx+2.9,ty+2.3,cz);staticGroup.add(mouth);
-   const rg=new THREE.DodecahedronGeometry(1,0),rm=TEX.rock_cliff?texLambert('rock_cliff',1/4,0xa8a49e):TEX.concrete_wall?texLambert('concrete_wall',1/3,0x7f7b74):new THREE.MeshLambertMaterial({color:0x5a5852});
-   for(const [ox,oy,oz,sc] of [[4.2,2.4,-4.6,3.2],[4.4,2.2,4.8,3.4],[4.8,6.4,0,3.6],[5.4,5.2,-3,2.8],[5.6,5.6,3.2,3],[2,5.6,-3,1.3],[1.6,5.5,3.1,1.2]]){
-     const m=new THREE.Mesh(rg,rm);m.scale.set(sc,sc*.8,sc);m.position.set(cx+ox,ty+oy,cz+oz);m.rotation.y=ox*2.1;m.castShadow=m.receiveShadow=true;staticGroup.add(m);}
-   // the cage
-   const st=new THREE.MeshLambertMaterial({color:0x6a7078}),yl=new THREE.MeshLambertMaterial({color:0xb5862a});
-   solidMesh(3.4,.14,3.4,st,cx+.4,ty+.07,cz);
-   for(const dx of [-1.25,2.05])for(const dz of [-1.65,1.65])solidMesh(.12,3.5,.12,yl,cx+dx,ty+1.75,cz+dz);
-   solidMesh(3.5,.14,3.5,yl,cx+.4,ty+3.5,cz);solidMesh(.07,9,.07,new THREE.MeshBasicMaterial({color:0x111111}),cx+.4,ty+8,cz);
-   const wheel=new THREE.Mesh(new THREE.CylinderGeometry(.7,.7,.18,14),st);wheel.rotation.x=Math.PI/2;wheel.position.set(cx+.4,ty+4.4,cz);staticGroup.add(wheel);
-   addGate(cx-3,cz,4.6,'z');addPanel(cx-3.6,cz+3.3);
-   markExit(cx,cz,'LIFT',3.2,3.2);
-   solidMesh(.14,3.2,.14,new THREE.MeshLambertMaterial({color:0x333333}),cx-3.6,ty+1.6,cz-3.4);addSign('MINE LIFT',cx-3.6,ty+3.1,cz-3.4,0);}
   addBridgeArrival();
   // hamlets: houses with climbable roofs, ruins, a survivor camp
   const kinds=['h2','h4','ruin','h4','camp','h2','h1','h4'];
@@ -4543,8 +4527,8 @@ function buildStation(){
   for(const x of [-18,-2,22,44,54])wallDecal('decal_leak',x+rr(-2,2),2.4,PZ+TW-.05,rr(3,5),4.4,Math.PI,.9);
   for(const x of [-47,-35,-31])wallDecal('decal_leak',x+rr(-1,1),2.4,31.85,rr(2.5,4),3.8,Math.PI,.9);
   wallDecal('decal_posters',PX0-.85,2.4,0,4.2,2.7,-Math.PI/2,.95);
-  // the lift you came down in
-  addLiftArrival(START.x-4.4,START.z);
+  // the stairs you came down from the street
+  addStairArrival(START.x-4.4,START.z);
   // a cave-in closes the north end of the long tunnel
   {const rg=new THREE.DodecahedronGeometry(1,0),rm=TEX.metro_tunnel_concrete?texLambert('metro_tunnel_concrete',1/3,0x9a9a9a):new THREE.MeshLambertMaterial({color:0x5a5852});
    addBox(-40,42.2,3.8,3.6,2.6,{invisible:true,kind:'rubble',noFade:true});
@@ -4579,32 +4563,31 @@ function updateStation(dt){
     for(const z of zombies){if(z.dead||z.x<r.x0||Math.abs(z.z-r.z)>.42||z.y>w.railY+.45)continue;z.hp-=45*dt;
       if(Math.random()<dt*10)glow.emit(z.x,z.y+.5,z.z,R(-3,3),R(1,5),R(-3,3),.3,0x9ac4ff,8);if(z.hp<=0)killZombie(z);}}
 }
-// level 4 start: the lift drops the last metres and the shaft comes down after it
-function addLiftArrival(x,z){
-  const st=new THREE.MeshLambertMaterial({color:0x6a7078}),yl=new THREE.MeshLambertMaterial({color:0xb5862a});
-  solidMesh(3.4,.14,3.4,st,x,.07,z);for(const dx of [-1.6,1.6])for(const dz of [-1.6,1.6])solidMesh(.12,3.4,.12,yl,x+dx,1.7,z+dz);
+// deep station start: the stairs from the street, caving in behind you
+function addStairArrival(x,z){
+  const cm=TEX.metro_tunnel_concrete?texLambert('metro_tunnel_concrete',1/4,0xb0b0b0):new THREE.MeshLambertMaterial({color:0x5a5852});
+  for(let i=0;i<7;i++)solidMesh(.62,.32*(i+1),3.5,cm,x+1.6-i*.6,.16*(i+1),z); // steps rising to the west, towards the street
   addBox(x,z,3.6,3.6,.9,{invisible:true,kind:'rubble',noFade:true});
   const parts=[],rubble=[];
   const part=(m,delay,rest,fx,fz)=>{Object.assign(m.userData,{delay,rest,fx,fz,rx:R(-1.5,1.5),rz:R(-1.5,1.5)});parts.push(m);return m;};
-  part(solidMesh(3.5,.14,3.5,yl,x,3.45,z),.8,1.0,.3,-.25);
-  {const wh=new THREE.Mesh(new THREE.CylinderGeometry(.7,.7,.18,14),st);wh.rotation.x=Math.PI/2;wh.position.set(x,4.4,z);wh.castShadow=true;staticGroup.add(wh);part(wh,.85,1.25,.2,.4);}
-  part(solidMesh(.07,9,.07,new THREE.MeshBasicMaterial({color:0x111111}),x,9,z),.8,1.3,Math.PI/2,.3);
-  part(solidMesh(4.4,.3,.3,st,x,9.5,z-.8),1.15,1.2,.1,.35);part(solidMesh(.3,.3,4.4,st,x+.9,11,z),1.35,1.35,-.3,.1);
-  const rg=new THREE.DodecahedronGeometry(1,0),rm=TEX.metro_tunnel_concrete?texLambert('metro_tunnel_concrete',1/3,0x9a9a9a):new THREE.MeshLambertMaterial({color:0x5a5852});
-  for(let i=0;i<12;i++){const m=new THREE.Mesh(rg,rm);const sc=R(.55,1.15);m.position.set(x+R(-1.6,1.6),sc*.35,z+R(-1.6,1.6));m.rotation.set(R(0,3),R(0,3),R(0,3));m.castShadow=true;
+  part(solidMesh(3.4,.3,1.7,cm,x-.7,5.2,z),.8,1.9,.35,-.2);part(solidMesh(3.2,.3,1.6,cm,x+.7,6.2,z),.95,1.3,-.3,.25);
+  part(solidMesh(.3,.3,3.9,new THREE.MeshLambertMaterial({color:0x6a7078}),x+.2,7.4,z),1.15,1.6,.2,.5);
+  const rg=new THREE.DodecahedronGeometry(1,0);
+  for(let i=0;i<14;i++){const m=new THREE.Mesh(rg,cm);const sc=R(.55,1.2);m.position.set(x+R(-1.6,1.6),sc*.35+R(0,1.4),z+R(-1.6,1.6));m.rotation.set(R(0,3),R(0,3),R(0,3));m.castShadow=true;
     m.userData.s1=new THREE.Vector3(sc,sc*.7,sc);m.userData.delay=.8+i*.06;m.visible=false;staticGroup.add(m);rubble.push(m);}
-  addCollapse({x,y:0,z,sx:1.8,sz:1.8,dur:2.8,floor:0,parts,rubble,msg:'The lift drops the last metres and the shaft comes down after it – no way back.'});
+  addCollapse({x,y:0,z,sx:1.8,sz:1.8,dur:2.8,floor:0,parts,rubble,msg:'The stairwell caves in behind you – there is no way back.'});
 }
 // ---------- level table + world (re)building ----------
 const LEVELS=[
   {n:1,name:'The Burning District',build:buildCity,start:{x:-52,z:-52},evac:{x:55.9,z:42},parts:5,zombies:42,inf:90,cap:48,runners:.24,fog:0x050507,evacClear:9,out:'slipped down into the metro',
    item:{many:'fuses',found:'Fuse found',hud:'Fuses',dev:'the gate panel',goal:'they power the grate over the metro stairs',open:'The grate rolls up – down the stairs!'}},
-  {n:2,name:'The Harbor',build:buildHarbor,start:{x:-52,z:-50},evac:{x:53.5,z:30},parts:6,zombies:52,inf:75,cap:58,runners:.34,fog:0x04060a,evacClear:8,out:'crossed the bridge to the island',
+  {n:2,name:'The Deep Station',build:buildStation,start:{x:-46,z:-28},evac:{x:16.8,z:7.9},parts:6,zombies:48,inf:80,cap:54,runners:.3,fog:0x020203,evacClear:6,out:'got the train rolling into the dark',
+   item:{many:'breakers',found:'Breaker found',hud:'Breakers',dev:'the switchboard',todo:'to get the train running',goal:'they bring the power back so the train can run',open:'The power is back – get to the train!'}},
+  {n:3,name:'The Harbor',build:buildHarbor,start:{x:-52,z:-50},evac:{x:53.5,z:30},parts:6,zombies:54,inf:72,cap:60,runners:.36,fog:0x04060a,evacClear:8,out:'crossed the bridge to the island',
    item:{many:'winch parts',found:'Winch part found',hud:'Parts',dev:'the bridge control',goal:'they open the barrier on the bridge',open:'The barrier lifts – get across the bridge!'}},
-  {n:3,name:'The Foothills',build:buildFoothills,start:{x:-50,z:-50},evac:{x:54.5,z:42},parts:6,zombies:56,inf:70,cap:62,runners:.4,fog:0x05070a,evacClear:11,out:'rode the lift down into the mountain',
-   item:{many:'lift parts',found:'Lift part found',hud:'Parts',dev:'the lift control',goal:'they get the mine lift running',open:'The cage door rolls up – into the lift!'}},
-  {n:4,name:'The Deep Station',build:buildStation,start:{x:-46,z:-28},evac:{x:16.8,z:7.9},parts:6,zombies:58,inf:65,cap:64,runners:.42,fog:0x020203,evacClear:6,out:'got the train rolling into the dark',
-   item:{many:'breakers',found:'Breaker found',hud:'Breakers',dev:'the switchboard',todo:'to get the train running',goal:'they bring the power back so the train can run',open:'The power is back – get to the train!'}}
+  // the last level has no exit: it ends when every zombie on the island is dead (clear:true, nothing spawns later)
+  {n:4,name:'The Island',build:buildFoothills,start:{x:-50,z:-50},evac:{x:54.5,z:42},parts:0,clear:true,zombies:70,inf:65,cap:70,runners:.42,fog:0x05070a,evacClear:11,out:'cleared the island of the dead',
+   item:{many:'zombies',found:'',hud:'Zombies left',dev:'',goal:'',open:''}}
 ];
 function resetWorld(){
   while(staticGroup.children.length)staticGroup.remove(staticGroup.children[0]);
@@ -4961,7 +4944,7 @@ function startLevel(n,fresh,opts){opts=opts||{};
   const parts=[];const far=(x,z)=>parts.every(q=>Math.hypot(q[0]-x,q[1]-z)>20);
   const roofs=lows.filter(b=>Math.hypot((b.x0+b.x1)/2-START.x,(b.z0+b.z1)/2-START.z)>28).sort(()=>rnd()-.5);
   if(world.partSpots)for(const q of world.partSpots)parts.push(q);
-  for(const b of roofs){if(parts.length>=2)break;const x=(b.x0+b.x1)/2-1,z=(b.z0+b.z1)/2;if(!far(x,z))continue;parts.push([x,z,b.h]);}
+  for(const b of roofs){if(parts.length>=Math.min(2,L.parts))break;const x=(b.x0+b.x1)/2-1,z=(b.z0+b.z1)/2;if(!far(x,z))continue;parts.push([x,z,b.h]);}
   for(let g=0;parts.length<L.parts&&g<3000;g++){const x=rr(-54,54),z=rr(-54,54);if(!okSpot(x,z,26)||!far(x,z))continue;parts.push([x,z,0]);}
   for(const [x,z,y] of parts)addPickup('radio',x,z,y);
   for(let i=0;i<L.zombies;i++){const sp=freeSpot(0,80,0,0);if(!sp||Math.hypot(sp.x-START.x,sp.z-START.z)<20)continue;spawnZombie(randomType(),sp.x,sp.z);}
@@ -4975,7 +4958,7 @@ function startLevel(n,fresh,opts){opts=opts||{};
   $('radioK').textContent=L.item.hud;
   if(world.collapse){if(opts.fallen)finishCollapse();else resetCollapse();}
   const rid=game.rid=(game.rid||0)+1; // hints must not leak into a later level
-  setTimeout(()=>{if(game.state==='playing'&&game.rid===rid)msg(`Find the ${L.parts} ${L.item.many} – ${L.item.goal}`,3.5,'#5ad1ff');},opts.fallen?2200:4600);
+  setTimeout(()=>{if(game.state==='playing'&&game.rid===rid)msg(L.clear?'This is the last stand – clear the island, kill every last zombie':`Find the ${L.parts} ${L.item.many} – ${L.item.goal}`,3.5,'#5ad1ff');},opts.fallen?2200:4600);
   if(n===1&&!opts.fallen)setTimeout(()=>{if(game.state==='playing'&&game.rid===rid)msg(touchMode?'Tip: Climb rooftops via crates and cars (CLIMB) – Walkers can’t follow.':'Tip: Click a rooftop next to a crate or container to climb – Walkers can’t follow. From up there you see more of the map.',4);},6500);
 }
 
@@ -5076,8 +5059,8 @@ function gameOver(){game.state='over';game.afterOver='retry';$('retryBtn').textC
 function levelDone(){
   const last=game.level>=LEVELS.length;game.state='over';
   const left=game.gang.filter(g=>g.status!=='dead'&&g.status!=='turned').length;
-  $('overT').textContent=last?'YOU ESCAPED CINDER CITY!':`LEVEL ${game.level} COMPLETE`;$('overT').style.color='#7fe39a';
-  $('overS').textContent=last?`${player.c.name} ${LEVELS[game.level-1].out}. ${game.kills} zombies down in total. ${left===2?'The whole crew survived!':'But not everyone made it…'} More levels are coming.`
+  $('overT').textContent=last?'YOU SURVIVED CINDER CITY!':`LEVEL ${game.level} COMPLETE`;$('overT').style.color='#7fe39a';
+  $('overS').textContent=last?`${player.c.name} ${LEVELS[game.level-1].out}. ${game.kills} zombies down in total. ${left===2?'The whole crew survived!':'But not everyone made it…'}`
     :`${player.c.name} ${LEVELS[game.level-1].out} after ${Math.floor(game.time)} seconds. ${game.kills} zombies down so far. ${left===2?'The whole crew is still together.':'You go on without your friend…'} Next: ${LEVELS[game.level].name}.`;
   game.afterOver=last?'campaign':'next';
   $('retryBtn').textContent=last?'Play again':`Continue to level ${game.level+1}`;showScreen('over');$('hud').style.display='none';}
@@ -5312,6 +5295,10 @@ function updateEvac(dt){
 }
 function updateSpawning(dt){
   game.spawnT-=dt;const alive=zombies.filter(z=>!z.dead).length;
+  if(LEVELS[game.level-1].clear){ // last level: nothing new arrives; the stragglers come looking for you; it ends when they are all dead
+    if(game.state==='playing'&&player&&game.time>2){if(alive===0){levelDone();return;}
+      if(alive<=8&&game.spawnT<=0){game.spawnT=4;for(const z of zombies)if(!z.dead&&z.state==='wander'){z.state='investigate';z.tx=player.x;z.tz=player.z;}}}
+    return;}
   const cap=evac.active?75:LEVELS[game.level-1].cap;
   if(game.spawnT<=0&&player){game.spawnT=evac.active?1.1:5.5;
     if(alive<cap){const n=evac.active?2:1;for(let i=0;i<n;i++){const s=freeSpot(evac.active?20:24,evac.active?32:40,player.x,player.z);if(!s)continue;const z=spawnZombie(randomType(evac.active),s.x,s.z);
@@ -5376,10 +5363,11 @@ function updateHud(){
     const b=Math.round(inf*20)/10;if(b!==lastBlur){lastBlur=b;canvas.style.filter=b>0?`blur(${(b*1.6).toFixed(1)}px) saturate(${(1-b*.6).toFixed(2)})`:'none';}
     const RD=game.radio||{have:0,need:5},done=RD.have>=RD.need,gateUp=world.panel&&!world.panel.done;
     let tgt=null;
-    const IT=LEVELS[game.level-1].item;
-    if(done){tgt=gateUp&&world.panel?{x:world.panel.x,z:world.panel.z}:{x:EVAC.x,z:EVAC.z};}
+    const IT=LEVELS[game.level-1].item,CL=LEVELS[game.level-1].clear;let zl=0;
+    if(CL){let bd=1e9;for(const z of zombies)if(!z.dead){zl++;const d=Math.hypot(z.x-p.x,z.z-p.z);if(d<bd){bd=d;tgt=z;}}}
+    else if(done){tgt=gateUp&&world.panel?{x:world.panel.x,z:world.panel.z}:{x:EVAC.x,z:EVAC.z};}
     else{let bd=1e9;for(const k of pickups)if(k.type==='radio'&&isDisc(k.x,k.z)){const d=Math.hypot(k.x-p.x,k.z-p.z);if(d<bd){bd=d;tgt=k;}}}
-    $('objTxt').textContent=!done?`Find the ${IT.many} – ${RD.have}/${RD.need}. They show on the map once you’ve seen the area.`:gateUp?`You have every part. Power ${IT.dev} ${IT.todo||'to open the grate'}.`:p.infected?'You’re infected – cure yourself before you can leave.':`Get to the exit – ${Math.round(Math.hypot(p.x-EVAC.x,p.z-EVAC.z))} m away.`;
+    $('objTxt').textContent=CL?(zl>8?`Clear the island – ${zl} zombies left.`:`Almost there – ${zl} left. The arrow points at the nearest one.`):!done?`Find the ${IT.many} – ${RD.have}/${RD.need}. They show on the map once you’ve seen the area.`:gateUp?`You have every part. Power ${IT.dev} ${IT.todo||'to open the grate'}.`:p.infected?'You’re infected – cure yourself before you can leave.':`Get to the exit – ${Math.round(Math.hypot(p.x-EVAC.x,p.z-EVAC.z))} m away.`;
     // arrow
     const v=new THREE.Vector3(tgt?tgt.x:0,(tgt?terr(tgt.x,tgt.z):0)+1,tgt?tgt.z:0).project(camera);
     const sx=(v.x+1)/2*innerWidth,sy=(1-v.y)/2*innerHeight;const off=sx<30||sx>innerWidth-30||sy<30||sy>innerHeight-30;
@@ -5388,7 +5376,7 @@ function updateHud(){
       $('arrow').style.display='block';$('arrow').style.left=(cx+Math.cos(a)*k)+'px';$('arrow').style.top=(cy+Math.sin(a)*k)+'px';$('arrow').style.transform=`rotate(${a+Math.PI/2}rad)`;}
     else $('arrow').style.display='none';
   } else {$('prompt').style.display='none';}
-  $('ammoV').textContent=game.ammo;if(game.radio)$('radioV').textContent=game.radio.have+'/'+game.radio.need;$('serumV').textContent=game.serums;$('killV').textContent=game.kills;
+  $('ammoV').textContent=game.ammo;if(game.radio)$('radioV').textContent=LEVELS[game.level-1].clear?zombies.reduce((n,z)=>n+(z.dead?0:1),0):game.radio.have+'/'+game.radio.need;$('serumV').textContent=game.serums;$('killV').textContent=game.kills;
   const h=$('hurtOv');h.style.opacity=Math.max(0,(+h.style.opacity||0)-.04);
   {const hz=player&&player.hoverZ;$('crosshair').style.filter=hz?'hue-rotate(-40deg) saturate(3)':'';$('crosshair').style.transform=hz?'scale(1.4)':'';}
   $('crosshair').style.left=mouse.x+'px';$('crosshair').style.top=mouse.y+'px';
