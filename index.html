@@ -162,7 +162,7 @@
 <div id="menu" class="screen show">
   <h1>CINDER CITY</h1>
   <div class="sub">The bombs fell three weeks ago. The city is still burning. You and your crew are the last ones alive – and a single wound is all it takes to become one of <i>them</i>.</div>
-  <div class="modes"><div class="mode on">Campaign · 4 levels: The Burning District → The Deep Station → The Harbor → The Island</div><div class="mode off">Last Man Standing – coming soon</div></div>
+  <div class="modes"><div class="mode on">Campaign · 5 levels: The Burning District → The Deep Station → The Flooded Station → The Harbor → The Island</div><div class="mode off">Last Man Standing – coming soon</div></div>
   <div class="cards" id="cards"></div>
   <button class="big" id="startBtn">Head out</button>
   <div class="sub touchOnly" style="margin:12px 0 0;font-size:12px">Left thumb: move – push to the edge to sprint · Right thumb: aim and auto-fire · Buttons: melee, jump, climb, serum</div>
@@ -4132,7 +4132,7 @@ function updatePanel(dt){
   pn.scr.color.setHex(ready?(Math.sin(game.time*8)>0?0xffc040:0x7a5a10):0xff3020);pn.lt.color.copy(pn.scr.color);
   const near=Math.hypot(p.x-pn.x,p.z-pn.z)<1.9&&Math.abs(p.y-pn.y)<1;
   if(near&&!ready){if(pn.warnT<=0){msg(`No power. ${it.dev} needs all ${it.many} – ${RD.have}/${RD.need}`,2.4,'#f0a33a');pn.warnT=4;}}
-  else if(near){if(pn.t===0)msg(`Fitting the ${it.many} – stay by the panel…`,2,'#5ad1ff');
+  else if(near){if(pn.t===0)msg(it.work||`Fitting the ${it.many} – stay by the panel…`,2,'#5ad1ff');
     pn.t+=dt;pn.tickT-=dt;if(pn.tickT<=0){pn.tickT=.3;tone(500+pn.t*260,560+pn.t*260,.06,.18,'square');noise(pn.x,pn.z,9);
       for(let k=0;k<4;k++)glow.emit(pn.x,pn.y+1.3,pn.z,R(-2,2),R(1,3),R(-2,2),.3,0xffd070,8);}
     if(pn.t>=pn.need){pn.done=true;pn.scr.color.setHex(0x4dff7a);pn.lt.color.setHex(0x4dff7a);pn.bar.visible=false;powerOn();return;}}
@@ -4503,12 +4503,7 @@ function buildStation(){
     solidMesh(.3,.2,.3,new THREE.MeshBasicMaterial({color:0xff3020}),x,3.9,z);}
   for(const [x,z] of [[-8,0],[14,0],[36,0],[54,0],[-40,-18],[-40,18],[-30,-12]]){const l=new THREE.PointLight(0xcfe0ff,0,32,2);l.position.set(x,5,z);staticGroup.add(l);world.whiteL.push(l);}
   // the train at the north side of the platform
-  const mkCar=(cx,tz,tint)=>{const b=addBox(cx,tz,16,2.9,3.85,{invisible:true,kind:'train'});
-    const side=new THREE.MeshLambertMaterial(TEX.train_side?{map:TEX.train_side,color:tint,emissive:0x000000,emissiveMap:TEX.train_side}:{color:0x7a7a72});
-    const body=new THREE.MeshLambertMaterial({color:new THREE.Color(tint).multiplyScalar(.45)}),roof=new THREE.MeshLambertMaterial({color:new THREE.Color(tint).multiplyScalar(.35)});
-    const mats=[body,body,roof,body,side,side];const m=new THREE.Mesh(new THREE.BoxGeometry(16,3.5,2.9),mats);m.position.set(cx,-TD+.35+1.75,tz);m.castShadow=m.receiveShadow=true;staticGroup.add(m);
-    const und=solidMesh(14.6,.5,2.3,new THREE.MeshLambertMaterial({color:0x121212}),cx,-TD+.25,tz);
-    b.mesh.userData.fadeMats=[side,body,roof];return {b,side,m,und,x0:cx};};
+  const mkCar=(cx,tz,tint)=>metroCar(cx,tz,tint,-TD);
   world.cars=[];for(const cx of [4,20.8,37.6])world.cars.push(mkCar(cx,TRK,0xffffff));
   flatQuad(2.4,1.4,gratM,EVAC.x,.035,PZ+.3);
   markExit(EVAC.x,EVAC.z,'TRAIN',2.6,2.2,1.5);
@@ -4563,6 +4558,119 @@ function updateStation(dt){
     for(const z of zombies){if(z.dead||z.x<r.x0||Math.abs(z.z-r.z)>.42||z.y>w.railY+.45)continue;z.hp-=45*dt;
       if(Math.random()<dt*10)glow.emit(z.x,z.y+.5,z.z,R(-3,3),R(1,5),R(-3,3),.3,0x9ac4ff,8);if(z.hp<=0)killZombie(z);}}
 }
+// a metro car standing on a track bed at height by
+function metroCar(cx,tz,tint,by){const b=addBox(cx,tz,16,2.9,3.85,{invisible:true,kind:'train',base:by});
+  const side=new THREE.MeshLambertMaterial(TEX.train_side?{map:TEX.train_side,color:tint,emissive:0x000000,emissiveMap:TEX.train_side}:{color:0x7a7a72});
+  const body=new THREE.MeshLambertMaterial({color:new THREE.Color(tint).multiplyScalar(.45)}),roof=new THREE.MeshLambertMaterial({color:new THREE.Color(tint).multiplyScalar(.35)});
+  const mats=[body,body,roof,body,side,side];const m=new THREE.Mesh(new THREE.BoxGeometry(16,3.5,2.9),mats);m.position.set(cx,by+.35+1.75,tz);m.castShadow=m.receiveShadow=true;staticGroup.add(m);
+  const und=solidMesh(14.6,.5,2.3,new THREE.MeshLambertMaterial({color:0x121212}),cx,by+.25,tz);
+  b.mesh.userData.fadeMats=[side,body,roof];return {b,side,m,und,x0:cx};}
+// ---------- Level 3: the flooded station – a wide hall, drowned tracks, two footbridges and a generator ----------
+function buildFlooded(){
+  srand(9091);world.lots=[];world.noWalls=true;world.indoor=true;world.rails=[];
+  // Plan (x -50..50): the train you came on stands in a dry trench in the south (z -37.4..-30.5), then the south
+  // platform (z -30.5..-16), the flooded track beds (|z| < 16) with two footbridges and a maintenance island,
+  // the north platform (z 16..30), three side rooms in the north-west and the ticket hall in the north-east.
+  const X0=-50,X1=50,BZ=16,TD=1.1,WL=-.35,SZ0=-37.4,SZ1=-30.5,PN=30,RN=42,HN=48,HX=-8,TRS=-34;
+  const DRY=[[-24,-20,-BZ,BZ],[26,30,-BZ,BZ],[-7,7,-2.2,2.2]]; // the two bridges and the island: [x0,x1,z0,z1]
+  world.terrFn=(x,z)=>{let d;
+    if(z<SZ1)d=Math.min(SZ1-z,z-SZ0);
+    else{d=BZ-Math.abs(z);for(const r of DRY)d=Math.min(d,Math.max(r[0]-x,x-r[1],r[2]-z,z-r[3]));}
+    return d<=0?0:d>=.35?-TD:-TD*d/.35;};
+  world.wade=-.5;world.pools=[[X0,-BZ,X1-X0,2*BZ]];
+  hemi.intensity=.8;moon.intensity=.45;
+  world.torch=new THREE.PointLight(0xffe2b0,1.7,15,2);staticGroup.add(world.torch);
+  const M=(k,sc,col)=>TEX[k]?texLambert(k,sc,col):new THREE.MeshLambertMaterial({color:col&0x7f7f7f});
+  const floorM=M('metro_platform_floor',1/5,0xffffff),bedM=M('metro_track_bed',1/5,0xf0f0f0),concM=M('metro_tunnel_concrete',1/6,0xf0f0f0),gratM=M('metal_grating',1/3,0xa0a0a0);
+  const fq=(x0,x1,z0,z1,mat,y)=>{const m=flatQuad(x1-x0,z1-z0,mat,(x0+x1)/2,y||0,(z0+z1)/2);m.receiveShadow=true;return m;};
+  const L=X1-X0;
+  fq(X0,X1,SZ1,-BZ,floorM);fq(X0,X1,BZ,PN,floorM);fq(X0,HX,PN,RN,concM);fq(HX,X1,PN,HN,floorM);
+  fq(X0,X1,SZ0,SZ1,bedM,-TD);fq(X0,X1,-BZ,BZ,bedM,-TD);
+  // the faces of the platforms that the camera sees
+  for(const z of [SZ1-.02,BZ-.02]){const w=new THREE.Mesh(new THREE.PlaneGeometry(L,TD+.02),concM);w.position.set(0,-TD/2,z);w.rotation.y=Math.PI;staticGroup.add(w);}
+  if(TEX.decal_platform_edge){const t=TEX.decal_platform_edge.clone();t.needsUpdate=true;t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(L/5,1);
+    const em=new THREE.MeshLambertMaterial({map:t,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-4});
+    for(const z of [SZ1+.6,-BZ-.6,BZ+.6])flatQuad(L,.55,em,0,.03,z);}
+  // the water
+  {const wmat=TEX.water?new THREE.MeshLambertMaterial({map:TEX.water.clone(),color:0x7f98a8,emissive:0x061420}):new THREE.MeshLambertMaterial({color:0x0c1d2a,emissive:0x04101a});
+   if(TEX.water){wmat.map.needsUpdate=true;wmat.map.wrapS=wmat.map.wrapT=THREE.RepeatWrapping;wmat.map.repeat.set(L/7,2*BZ/7);}
+   const water=new THREE.Mesh(new THREE.PlaneGeometry(L,2*BZ),wmat);water.rotation.x=-Math.PI/2;water.position.set(0,WL,0);water.receiveShadow=true;staticGroup.add(water);world.water=water;}
+  // the dry track in the south with the train that brought you here
+  const steel=new THREE.MeshLambertMaterial({color:0x6a6e74}),wood=new THREE.MeshLambertMaterial({color:0x3a2c22}),dark=new THREE.MeshLambertMaterial({color:0x33373c});
+  {const NS=Math.floor(L/1.2),sl=new THREE.InstancedMesh(new THREE.BoxGeometry(.28,.12,2.4),wood,NS),mx=new THREE.Matrix4();
+   for(let i=0;i<NS;i++){mx.makeTranslation(X0+.6+i*1.2,-TD+.06,TRS);sl.setMatrixAt(i,mx);}sl.receiveShadow=true;staticGroup.add(sl);
+   for(const o of [-.75,.75])solidMesh(L,.14,.1,steel,0,-TD+.19,TRS+o);}
+  for(const cx of [-38,-21.2,-4.4])metroCar(cx,TRS,0xd8d8d0,-TD);
+  // wrecks in the water
+  metroCar(-2,9.2,0x4a4038,-TD);metroCar(8,-9.4,0x4a4038,-TD);
+  // footbridges and the island between the tracks
+  for(const r of DRY.slice(0,2)){const xc=(r[0]+r[1])/2;solidMesh(4.3,.3,2*BZ,gratM,xc,-.151,0).receiveShadow=true;
+    for(let z=-BZ+4;z<BZ;z+=8)for(const o of [-1.8,1.8])solidMesh(.3,TD,.3,dark,xc+o,-TD/2-.2,z);
+    for(const o of [-2.1,2.1]){solidMesh(.08,.08,2*BZ,steel,xc+o,1,0);for(let z=-BZ;z<=BZ;z+=4)solidMesh(.08,1,.08,steel,xc+o,.5,z);}
+    world.lots.push([r[0],-BZ,4,2*BZ]);}
+  {const r=DRY[2];solidMesh(r[1]-r[0],TD,r[3]-r[2],concM,(r[0]+r[1])/2,-TD/2-.001,0).receiveShadow=true;fq(r[0],r[1],r[2],r[3],concM,.004);world.lots.push([r[0],r[2],r[1]-r[0],r[3]-r[2]]);}
+  world.lots.push([X0,SZ1,L,-BZ-SZ1],[X0,BZ,L,PN-BZ],[X0,PN,HX-X0,RN-PN],[HX,PN,X1-HX,HN-PN]);
+  // black void all around
+  const rock=(x0,x1,z0,z1)=>addBox((x0+x1)/2,(z0+z1)/2,x1-x0,z1-z0,30,{invisible:true,noFade:true,kind:'void',base:-TD});
+  rock(-58,58,-58,SZ0-.5);rock(-58,X0-.5,SZ0-.5,58);rock(X1+.8,58,SZ0-.5,58);rock(X0-.5,HX,RN+.8,58);rock(HX,X1+.8,HN+.8,58);
+  // walls: full height on the far sides, half height towards the camera
+  const tile={tex:['metro_wall_tiles',1/2.5],color:0xd0d0d0,kind:'wall'},conc={tex:['metro_tunnel_concrete',1/5],color:0xc0c0c0,kind:'wall'};
+  const wallX=(x0,x1,z,gaps,o)=>{let a=x0;for(const g of (gaps||[]).concat([[x1,x1]])){if(g[0]-a>.5)addBox((a+g[0])/2,z,g[0]-a,.8,4.4,o||tile);a=g[1];}};
+  addBox(X1+.4,(SZ0+PN)/2,.8,PN-SZ0,TD+5,{...conc,noFade:true,base:-TD});            // east end of the hall
+  for(const z of [TRS,-9,9]){const pm=new THREE.Mesh(new THREE.PlaneGeometry(5.6,4.6),new THREE.MeshBasicMaterial({color:0x010101}));pm.rotation.y=-Math.PI/2;pm.position.set(X1-.05,-TD+2.3,z);staticGroup.add(pm);}
+  addBox(X1+.4,(PN+HN)/2,.8,HN-PN,4.4,{...tile,noFade:true});                         // east wall of the ticket hall
+  addBox((HX+X1)/2,HN+.4,X1-HX+.8,.8,4.4,{...tile,noFade:true});                      // north wall of the ticket hall
+  addBox((X0+HX)/2,RN+.4,HX-X0,.8,4.4,{...conc,noFade:true});                         // north wall of the side rooms
+  addBox(X0-.25,(SZ0+RN)/2,.5,RN-SZ0,TD+1.1,{...conc,base:-TD});                      // west end, low
+  addBox(0,SZ0-.25,L+1,.5,TD+1.1,{...conc,base:-TD});                                 // south edge, low
+  wallX(X0,X1,PN+.4,[[-45,-42],[-30,-27],[-16,-13],[8,14],[30,36]]);                  // platform | rooms and hall
+  for(const x of [-36,-22])addBox(x,(PN+.8+RN)/2,.8,RN-PN-.8,4.4,conc);               // between the side rooms
+  addBox(HX,PN+.8+2,.8,4,4.4,conc);addBox(HX,(PN+8.8+HN)/2,.8,HN-PN-8.8,4.4,conc);    // side rooms | hall, with a door
+  // the stairs up to the harbor, behind a roller shutter in the north-east corner
+  addBox(46,41.6,8,.8,4.4,tile);
+  for(let i=0;i<8;i++)solidMesh(.62,.32*(i+1),5.4,concM,45.2+i*.6,.16*(i+1),45); // steps rising to the east
+  addBox(47.6,45,4.8,6,.9,{invisible:true,kind:'rubble',noFade:true});
+  addGate(42,45,6,'z');markExit(EVAC.x,EVAC.z,'HARBOR',2.6,5,1.7);
+  addSign('HARBOR',41.6,3.4,45,0);addSign('EXIT',PN-.1,3.3,11,Math.PI/2);addSign('EXIT',PN-.1,3.3,33,Math.PI/2);
+  // the generator
+  addPanel(19,45.6);addBox(22.4,46.4,3.4,1.6,1.5,{color:0x3d5a3a,kind:'cabinet'});
+  solidMesh(.2,1.6,.2,dark,23.6,2.3,46.6);solidMesh(.5,.5,.5,new THREE.MeshLambertMaterial({color:0x8a2a1a}),21.2,1.75,46.2);
+  addSign('GENERATOR',20.5,3.4,47.9,Math.PI/2);
+  // ticket barriers and booths in the hall
+  for(const x of [9,11,13,31,33,35])addBox(x,34,.5,2.2,1.05,{color:0x7a8088,kind:'barrier'});
+  addBox(22,36,6,3,2.9,{color:0x3d4a5a,kind:'kiosk'});addBox(0,44,5,4,2.9,{color:0x5a3d3d,kind:'kiosk'});
+  // columns and light fittings
+  const lampM=new THREE.MeshBasicMaterial({color:0x15181a});
+  for(let x=-42;x<=44;x+=14)for(const z of [-23,23]){addBox(x,z,.9,.9,4.2,{tex:['metro_wall_tiles',1/2],color:0xc0c0c0,kind:'pillar'});solidMesh(2.6,.12,.22,lampM,x,3.7,z-.6);}
+  for(let x=-44;x<=44;x+=11)solidMesh(2.6,.12,.2,lampM,x,3.9,PN-.1);
+  for(const [x,z] of [[-43,41.9],[-29,41.9],[-15,41.9],[6,47.9],[32,47.9]])solidMesh(2.4,.12,.2,lampM,x,3.8,z);
+  world.redL=[];world.whiteL=[];
+  for(const [x,z] of [[-36,-24],[-6,-24],[30,-24],[-36,23],[0,23],[36,23],[-29,36],[16,40],[44,38]]){const l=new THREE.PointLight(0xff3020,2.2,26,2);l.position.set(x,3.6,z);staticGroup.add(l);world.redL.push(l);
+    solidMesh(.3,.2,.3,new THREE.MeshBasicMaterial({color:0xff3020}),x,3.9,z);}
+  for(const [x,z] of [[-34,-24],[0,-24],[34,-24],[-34,23],[0,23],[34,23],[-29,36],[20,40]]){const l=new THREE.PointLight(0xcfe0ff,0,36,2);l.position.set(x,5,z);staticGroup.add(l);world.whiteL.push(l);}
+  // posters and leaks
+  const wallDecal=(key,x,y,z,w,h,ry,op)=>{const dm=decalMat(key,op);if(!dm)return;const q=new THREE.Mesh(new THREE.PlaneGeometry(w,h),dm);q.position.set(x,y,z);q.rotation.y=ry;staticGroup.add(q);};
+  for(const x of [-38,-22,-4,22,44])wallDecal('decal_posters',x,2.6,PN-.04,4.2,2.7,Math.PI,.95);
+  for(const x of [-47,-33,-9,3,18,40])wallDecal('decal_leak',x+rr(-1,1),2.4,PN-.05,rr(3,5),4.4,Math.PI,.9);
+  for(const x of [-44,-28,-12])wallDecal('decal_leak',x+rr(-1,1),2.4,RN-.05,rr(3,5),4.4,Math.PI,.9);
+  // five fuel cans: both ends of the south platform, two side rooms and the island out in the water
+  world.partSpots=[[-46,-20,0],[46,-22,0],[-46,39,0],[-18,39,0],[4,0,0]];
+  // clutter on the dry floors
+  for(const [x,z] of [[-48,38],[-46,33.5],[-34,40],[-24,40],[-20,34],[-10,40]])addBox(x,z,1.5,1.5,1,{color:0x6a5236,kind:'crate',check:.3});
+  for(const z of [34,38])addBox(-33,z,1.2,2.6,2.2,{color:0x4a5a52,kind:'cabinet'});
+  for(let k=0;k<150;k++){const x=rr(-48,48),z=rr(-29,46);
+    if(Math.abs(z)<BZ+1.6||z>RN-1||(z>PN-3&&z<PN+4.5)||Math.hypot(x-EVAC.x,z-EVAC.z)<7||Math.hypot(x-19,z-45.6)<4)continue;
+    if(z>PN&&x<HX+2)continue; // the side rooms are furnished by hand
+    if(DRY.slice(0,2).some(r=>Math.abs(x-(r[0]+r[1])/2)<4.5&&Math.abs(z)<BZ+5))continue; // keep the bridge heads clear
+    const q=rnd();
+    if(q<.36)addBox(x,z,1.6,1.6,1,{color:0x6a5236,check:.9,avoidStart:true,kind:'crate'});
+    else if(q<.56){const al=rnd()<.5;addBox(x,z,al?.5:3,al?3:.5,.9,{color:0x6a5a3a,check:.9,avoidStart:true,kind:'barricade'});}
+    else if(q<.86){const al=rnd()<.5;addBox(x,z,al?.7:2.4,al?2.4:.7,.38,{color:0x4a4038,check:.9,avoidStart:true,kind:'bench'});}
+    else if(fires.length<7&&Math.hypot(x-START.x,z-START.z)>12&&!overlaps(x-1.5,x+1.5,z-1.5,z+1.5,.6))addFire(x,z,.6,fires.length<5);}
+  // the generator runs: lights on, shutter up
+  world.onPower=()=>{lampM.color.setHex(0xe6eeff);for(const l of world.whiteL)l.intensity=2.2;for(const l of world.redL)l.intensity=0;
+    hemi.intensity=1.15;moon.intensity=.7;world.torch.intensity=.6;};
+}
 // deep station start: the stairs from the street, caving in behind you
 function addStairArrival(x,z){
   const cm=TEX.metro_tunnel_concrete?texLambert('metro_tunnel_concrete',1/4,0xb0b0b0):new THREE.MeshLambertMaterial({color:0x5a5852});
@@ -4583,10 +4691,12 @@ const LEVELS=[
    item:{many:'fuses',found:'Fuse found',hud:'Fuses',dev:'the gate panel',goal:'they power the grate over the metro stairs',open:'The grate rolls up – down the stairs!'}},
   {n:2,name:'The Deep Station',build:buildStation,start:{x:-46,z:-28},evac:{x:16.8,z:7.9},parts:6,zombies:48,inf:80,cap:54,runners:.3,fog:0x020203,evacClear:6,out:'got the train rolling into the dark',
    item:{many:'breakers',found:'Breaker found',hud:'Breakers',dev:'the switchboard',todo:'to get the train running',goal:'they bring the power back so the train can run',open:'The power is back – get to the train!'}},
-  {n:3,name:'The Harbor',build:buildHarbor,start:{x:-52,z:-50},evac:{x:53.5,z:30},parts:6,zombies:54,inf:72,cap:60,runners:.36,fog:0x04060a,evacClear:8,out:'crossed the bridge to the island',
+  {n:3,name:'The Flooded Station',build:buildFlooded,start:{x:-30,z:-26},evac:{x:44,z:45},parts:5,zombies:52,inf:76,cap:58,runners:.33,fog:0x020304,evacClear:5,out:'climbed the stairs up towards the harbor',
+   item:{many:'fuel cans',found:'Fuel can found',hud:'Fuel',dev:'the generator',work:'Filling the generator – stay with it…',goal:'they run the generator that lifts the shutter to the stairs',open:'The generator roars – the shutter rolls up. Up the stairs!'}},
+  {n:4,name:'The Harbor',build:buildHarbor,start:{x:-52,z:-50},evac:{x:53.5,z:30},parts:6,zombies:54,inf:72,cap:60,runners:.36,fog:0x04060a,evacClear:8,out:'crossed the bridge to the island',
    item:{many:'winch parts',found:'Winch part found',hud:'Parts',dev:'the bridge control',goal:'they open the barrier on the bridge',open:'The barrier lifts – get across the bridge!'}},
   // the last level has no exit: it ends when every zombie on the island is dead (clear:true, nothing spawns later)
-  {n:4,name:'The Island',build:buildFoothills,start:{x:-50,z:-50},evac:{x:54.5,z:42},parts:0,clear:true,zombies:70,inf:65,cap:70,runners:.42,fog:0x05070a,evacClear:11,out:'cleared the island of the dead',
+  {n:5,name:'The Island',build:buildFoothills,start:{x:-50,z:-50},evac:{x:54.5,z:42},parts:0,clear:true,zombies:70,inf:65,cap:70,runners:.42,fog:0x05070a,evacClear:11,out:'cleared the island of the dead',
    item:{many:'zombies',found:'',hud:'Zombies left',dev:'',goal:'',open:''}}
 ];
 function resetWorld(){
@@ -4594,7 +4704,7 @@ function resetWorld(){
   for(const f of fires)scene.remove(f.g);fires.length=0;
   boxes.length=0;fadeMeshes.length=0;buildingsLow.length=0;ruinPlots.length=0;stackQueue.length=0;
   if(world.beam){scene.remove(world.beam);scene.remove(world.evacLight);world.beam=null;}
-  world.gate=null;world.water=null;world.exit=null;world.panel=null;world.collapse=null;world.gapE=null;world.partSpots=null;world.indoor=false;world.torch=null;world.cars=null;world.leaving=null;world.onPower=null;world.rails=null;world.live=false;world.terrFn=null;world.roadD=null;world.noWalls=false;
+  world.gate=null;world.water=null;world.exit=null;world.panel=null;world.collapse=null;world.gapE=null;world.partSpots=null;world.indoor=false;world.torch=null;world.cars=null;world.leaving=null;world.onPower=null;world.rails=null;world.live=false;world.terrFn=null;world.roadD=null;world.noWalls=false;world.wade=null;world.pools=null;
   if(typeof _boxMeshes!=='undefined')_boxMeshes=null;
 }
 function buildLevel(n){
@@ -4608,6 +4718,7 @@ function buildLevel(n){
 }
 
 // ================= Physics helpers =================
+function wading(e){return world.wade!=null&&e.y<world.wade&&terr(e.x,e.z)<world.wade;}
 function blockedAt(x,z,r,y){for(const b of boxes){if(x+r>b.x0&&x-r<b.x1&&z+r>b.z0&&z-r<b.z1&&b.h>y+STEP)return b;}return null;}
 function groundAt(x,z,y,r){let g=terr(x,z);const m=r*.5;for(const b of boxes){if(x+m>b.x0&&x-m<b.x1&&z+m>b.z0&&z-m<b.z1&&b.h<=y+STEP+.01&&b.h>g)g=b.h;}return g;}
 function moveEntity(e,dx,dz,r){
@@ -4935,7 +5046,7 @@ function startLevel(n,fresh,opts){opts=opts||{};
   const act=game.gang.find(g=>g.status==='active')||game.gang.find(g=>g.status==='reserve');act.status='active';
   player=makePlayer(act.key,START.x,START.z);
   srand(777+n*31);
-  const okSpot=(x,z,minS)=>!(Math.hypot(x-START.x,z-START.z)<minS||blockedAt(x,z,.5,terr(x,z))||groundAt(x,z,terr(x,z),.5)>terr(x,z)+.01||fires.some(f=>Math.hypot(f.x-x,f.z-z)<f.r+1)||Math.hypot(x-EVAC.x,z-EVAC.z)<9);
+  const okSpot=(x,z,minS)=>!(Math.hypot(x-START.x,z-START.z)<minS||blockedAt(x,z,.5,terr(x,z))||groundAt(x,z,terr(x,z),.5)>terr(x,z)+.01||fires.some(f=>Math.hypot(f.x-x,f.z-z)<f.r+1)||Math.hypot(x-EVAC.x,z-EVAC.z)<9||(world.wade!=null&&terr(x,z)<world.wade));
   const placeOnStreet=(type,cnt)=>{let c=0,g=0;while(c<cnt&&g<600){g++;const x=rr(-54,54),z=rr(-54,54);if(!okSpot(x,z,10))continue;addPickup(type,x,z);c++;}};
   placeOnStreet('ammo',8);placeOnStreet('med',5);placeOnStreet('serum',2);
   const lows=buildingsLow.slice().sort((a,b)=>Math.hypot((a.x0+a.x1)/2+20,(a.z0+a.z1)/2+20)-Math.hypot((b.x0+b.x1)/2+20,(b.z0+b.z1)/2+20));
@@ -4947,7 +5058,7 @@ function startLevel(n,fresh,opts){opts=opts||{};
   for(const b of roofs){if(parts.length>=Math.min(2,L.parts))break;const x=(b.x0+b.x1)/2-1,z=(b.z0+b.z1)/2;if(!far(x,z))continue;parts.push([x,z,b.h]);}
   for(let g=0;parts.length<L.parts&&g<3000;g++){const x=rr(-54,54),z=rr(-54,54);if(!okSpot(x,z,26)||!far(x,z))continue;parts.push([x,z,0]);}
   for(const [x,z,y] of parts)addPickup('radio',x,z,y);
-  for(let i=0;i<L.zombies;i++){const sp=freeSpot(0,80,0,0);if(!sp||Math.hypot(sp.x-START.x,sp.z-START.z)<20)continue;spawnZombie(randomType(),sp.x,sp.z);}
+  for(let i=0;i<L.zombies;i++){const sp=freeSpot(0,80,0,0);if(!sp||Math.hypot(sp.x-START.x,sp.z-START.z)<20||(world.gate&&Math.hypot(sp.x-EVAC.x,sp.z-EVAC.z)<4))continue;spawnZombie(randomType(),sp.x,sp.z);}
   for(const [ox,oz] of [[12,2],[3,13]]){const x=START.x+ox,z=START.z+oz;if(!blockedAt(x,z,.5,terr(x,z)))spawnZombie('walker',x,z);}
   if(opts.fallen){const f=opts.fallen;let gx=f.x,gz=f.z;if(f.y-terr(gx,gz)>.5||blockedAt(gx,gz,.5,terr(gx,gz))){const sp=freeSpot(1,8,f.x,f.z);if(sp){gx=sp.x;gz=sp.z;}}const z=spawnZombie('walker',gx,gz,0,f);z.state='wander';}
   updateHitsHud();
@@ -5136,6 +5247,7 @@ function updatePlayer(dt){
     if(p.st<=1)p.tired=true;else if(p.st>=c.stamina*.2)p.tired=false; // must recover 20% before sprinting again
     p.sprinting=(keys['shift']||(touchMode&&touch.move.mag>.88))&&il2>0&&!p.tired;
     let sp=(p.sprinting?c.sprint:c.speed)*(1-inf*.35);
+    if(wading(p)){sp*=.55;if(il2&&Math.random()<dt*9)fx.emit(p.x+R(-.3,.3),world.water.position.y+.1,p.z+R(-.3,.3),R(-1.2,1.2),R(1.5,3.5),R(-1.2,1.2),R(.3,.6),0xa8c4d8,12);} // knee-deep water
     if(world.terrFn&&il2&&p.grounded){const t0=terr(p.x,p.z);if(p.y-t0<.1){const sl=(terr(p.x+ix/il2*.6,p.z+iz/il2*.6)-t0)/.6;sp*=clamp(1-sl*1.2,.6,1.15);}} // slower uphill, faster downhill
     if(p.sprinting){p.st-=24*dt;}else p.st=Math.min(c.stamina,p.st+(il2?12:20)*dt);
     if(p.st<=1)p.st=Math.max(p.st,0);
@@ -5226,6 +5338,7 @@ function updateZombie(z,dt){
     for(const o of zombies){if(o===z||o.dead)continue;const ox=z.x-o.x,oz=z.z-o.z;const od=ox*ox+oz*oz;const mr=(d0.r+o.d.r);if(od<mr*mr&&od>.0001){const f=(mr-Math.sqrt(od))*3;vx+=ox*f;vz+=oz*f;}}
     const l2=Math.hypot(vx,vz)||1;
     if(world.terrFn){const t0=terr(z.x,z.z);sp*=clamp(1-(terr(z.x+vx/l2*.6,z.z+vz/l2*.6)-t0)/.6,.65,1.15);}
+    if(wading(z))sp*=.55;
     const hit=moveEntity(z,vx/l2*sp*dt,vz/l2*sp*dt,d0.r);moving=1;
     z.face=Math.atan2(vx,vz);
     if(hit&&z.state!=='wander'){
@@ -5480,6 +5593,8 @@ function buildMinimapBase(){
   if(world.terrFn&&!world.indoor){for(let j=0;j<GC;j++)for(let i=0;i<GC;i++){const x=-HALF+i*2+1,z=-HALF+j*2+1,k=clamp(terr(x,z)/16,0,1);
     g.fillStyle=world.roadD&&world.roadD(x,z)<2.5?'#4a4338':`rgb(${Math.round(22+k*34)},${Math.round(34+k*40)},${Math.round(24+k*26)})`;g.fillRect(i*2*MS,j*2*MS,2*MS,2*MS);}}
   g.fillStyle='#2a2930';for(const [x,z,w,d] of (world.lots||[]))g.fillRect(P(x),P(z),w*MS,d*MS);
+  g.fillStyle='#0e2433';for(const [x,z,w,d] of (world.pools||[]))g.fillRect(P(x),P(z),w*MS,d*MS);
+  g.fillStyle='#2a2930';for(const [x,z,w,d] of (world.pools?world.lots:[]))if(w<15||d<15)g.fillRect(P(x),P(z),w*MS,d*MS);
   g.fillStyle='#0e2433';for(const b of boxes)if(b.kind==='water')g.fillRect(P(b.x0),P(b.z0),(b.x1-b.x0)*MS,(b.z1-b.z0)*MS);
   for(const b of boxes){const w=b.x1-b.x0,d=b.z1-b.z0;if(w>100||d>100||b.kind==='water'||b.kind==='void')continue;
     const bh=b.h-(b.base||0);
