@@ -1,5 +1,12 @@
-# Only index.php and admin.php are meant to be opened from outside.
+# Optional extra lock: only index.php and admin.php are meant to be opened from outside.
+# The leaderboard is safe without this file too (config.php and lib.php print nothing when opened,
+# and schema.sql holds no secrets), so if the server answers "500 Internal Server Error", delete it.
 <FilesMatch "^(config(\.sample)?\.php|lib\.php|schema\.sql)$">
-  Require all denied
+  <IfModule mod_authz_core.c>
+    Require all denied
+  </IfModule>
+  <IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+  </IfModule>
 </FilesMatch>
-Options -Indexes
