@@ -4,3 +4,6 @@ models/runner_girl.glb
 models/zombie_runner.glb
 models/fat_zombie.glb
 models/zombie_run.glb
+
+# Server settings with the database password: never in git
+api/config.php

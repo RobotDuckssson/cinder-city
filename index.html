@@ -76,6 +76,23 @@
   .perk{font-size:12px;margin-top:8px;color:#f0c27a}
   button.big{margin-top:24px;font-family:Oswald;font-size:22px;letter-spacing:3px;padding:12px 44px;background:#f0a33a;color:#1a0d04;border:0;border-radius:8px;cursor:pointer;text-transform:uppercase;box-shadow:0 6px 24px rgba(240,120,30,.35)}
   button.big:hover{background:#ffb84e}
+  #lbForm{display:none;margin-top:18px;text-align:center;pointer-events:auto}
+  #lbForm.show{display:block}
+  #lbStats{display:flex;gap:10px;justify-content:center;margin-bottom:12px}
+  #lbStats div{background:rgba(20,18,20,.85);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:8px 16px;font-size:12px;opacity:.9}
+  #lbStats b{display:block;font-family:Oswald;font-size:22px;color:#f0a33a;font-weight:500}
+  #lbName{font-family:Oswald;font-size:18px;letter-spacing:1px;padding:8px 12px;width:190px;background:rgba(0,0,0,.5);color:#e8e2d6;border:1px solid rgba(255,255,255,.3);border-radius:8px;text-align:center}
+  #lbMsg{font-size:13px;margin-top:8px;min-height:18px;opacity:.85}
+  #lbBtn{display:none}
+  .lbTabs{display:flex;gap:8px;margin:14px 0}
+  .lbTabs button.sec{margin-top:0}
+  .lbTabs button.on{background:#f0a33a;color:#1a0d04;border-color:#f0a33a}
+  #lbList{width:min(520px,92vw);border-collapse:collapse;font-size:15px}
+  #lbList td{padding:7px 8px;border-bottom:1px solid rgba(255,255,255,.1)}
+  #lbList td:first-child{width:34px;opacity:.5}
+  #lbList td:last-child{text-align:right;font-family:Oswald;font-size:17px;color:#f0a33a}
+  #lbList tr.me td{color:#7fe39a}
+  #lbList .ch{opacity:.55;font-size:13px}
   button.sec{margin-top:10px;font-family:Oswald;font-size:15px;letter-spacing:2px;padding:8px 22px;background:transparent;color:#e8e2d6;border:1px solid rgba(255,255,255,.25);border-radius:8px;cursor:pointer}
   .controls{margin-top:22px;display:grid;grid-template-columns:auto auto auto auto;gap:6px 18px;font-size:12px;opacity:.8}
   .controls kbd{font-family:Oswald;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:4px;padding:1px 7px;margin-right:4px}
@@ -166,6 +183,7 @@
   <div class="modes"><div class="mode on">Campaign · 5 levels: The Burning District → The Deep Station → The Flooded Station → The Harbor → The Island</div><div class="mode off">Last Man Standing – coming soon</div></div>
   <div class="cards" id="cards"></div>
   <button class="big" id="startBtn">Head out</button>
+  <button class="sec" id="lbBtn">Leaderboard</button>
   <div class="sub touchOnly" style="margin:12px 0 0;font-size:12px">Left thumb: move – push to the edge to sprint · Right thumb: aim and auto-fire · Buttons: melee, jump, climb, serum</div>
   <div class="controls deskOnly">
     <div><kbd>L-click</kbd>Move / attack</div><div><kbd>R-click</kbd>Shoot (loud!)</div><div><kbd>Shift</kbd>Sprint</div><div><kbd>Space</kbd>Jump</div>
@@ -175,8 +193,13 @@
   <div class="sub menuNote" style="margin-top:12px;font-size:12px">Noise attracts zombies. Gunshots carry across the whole block. Zombies can’t climb – rooftops are your safe ground.</div>
 </div>
 
+<div id="board" class="screen"><div class="big-t" style="color:#f0a33a">TOP SURVIVORS</div>
+  <div class="lbTabs"><button class="sec" data-lb="time">Fastest time</button><button class="sec" data-lb="kills">Most kills</button><button class="sec" data-lb="dist">Longest walk</button></div>
+  <table id="lbList"></table><div class="sub" id="lbNote" style="font-size:12px;margin-top:10px"></div><button class="sec" id="lbBack">Back</button></div>
 <div id="pause" class="screen"><div class="big-t">PAUSED</div><button class="big" id="resumeBtn">Resume</button><button class="sec" id="quitBtn">Main menu</button></div>
-<div id="over" class="screen"><div class="big-t" id="overT" style="color:#e5533d">THE CREW IS GONE</div><div class="sub" id="overS"></div><button class="big" id="retryBtn">Try again</button><button class="sec" id="menuBtn">Main menu</button></div>
+<div id="over" class="screen"><div class="big-t" id="overT" style="color:#e5533d">THE CREW IS GONE</div><div class="sub" id="overS"></div>
+  <div id="lbForm"><div id="lbStats"></div><input id="lbName" maxlength="12" placeholder="Your name" autocomplete="off" spellcheck="false"> <button class="sec" id="lbSend">Post score</button> <button class="sec" id="lbView">Leaderboard</button><div id="lbMsg"></div></div>
+  <button class="big" id="retryBtn">Try again</button><button class="sec" id="menuBtn">Main menu</button></div>
 <div id="err"></div>
 <div id="touchUI">
   <div class="stick" id="stickL"><b>Move</b><i></i></div>
@@ -4969,7 +4992,7 @@ const SFX={
 
 // ================= Input =================
 const keys={};const pressed={};const mouse={x:innerWidth/2,y:innerHeight/2,l:false,r:false};
-addEventListener('keydown',e=>{const k=e.key.toLowerCase();if(!keys[k])pressed[k]=true;keys[k]=true;if([' ','arrowup','arrowdown'].includes(k))e.preventDefault();
+addEventListener('keydown',e=>{const k=e.key.toLowerCase();if(!keys[k])pressed[k]=true;keys[k]=true;if([' ','arrowup','arrowdown'].includes(k)&&e.target.tagName!=='INPUT')e.preventDefault();
   if(k==='escape'){if(game.state==='playing')pause(true);else if(game.state==='paused')pause(false);}
   if(k==='m'){muted=!muted;if(master)master.gain.value=muted?0:.55;}});
 addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;});
@@ -5033,7 +5056,7 @@ function clearDynamic(){
   tracer.visible=false;boomLight.intensity=0;if(typeof marker!=='undefined')marker.material.opacity=0;
 }
 
-function startGame(){game.level=1;game.kills=0;startLevel(1,true);}
+function startGame(){game.level=1;game.kills=0;lbStart();startLevel(1,true);}
 function startLevel(n,fresh,opts){opts=opts||{};
   initAudio();if(AC&&AC.state==='suspended')AC.resume();
   const L=LEVELS[n-1];game.level=n;
@@ -5074,7 +5097,7 @@ function startLevel(n,fresh,opts){opts=opts||{};
   if(n===1&&!opts.fallen)setTimeout(()=>{if(game.state==='playing'&&game.rid===rid)msg(touchMode?'Tip: Climb rooftops via crates and cars (CLIMB) – Walkers can’t follow.':'Tip: Click a rooftop next to a crate or container to climb – Walkers can’t follow. From up there you see more of the map.',4);},6500);
 }
 
-function showScreen(id){for(const s of ['menu','pause','over'])$(s).classList.toggle('show',s===id);
+function showScreen(id){for(const s of ['menu','pause','over','board'])$(s).classList.toggle('show',s===id);
   if(id){$('crosshair').style.display='none';canvas.style.cursor='default';}}
 function pause(on){if(on){game.state='paused';showScreen('pause');}else{game.state='playing';showScreen(null);$('crosshair').style.display='block';canvas.style.cursor='none';}}
 
@@ -5166,10 +5189,10 @@ function loseChar(reason){
     else gameOver();
   },3200);
 }
-function gameOver(){game.state='over';game.afterOver='retry';$('retryBtn').textContent=`Retry level ${game.level}`;$('overT').textContent='THE CREW IS GONE';$('overT').style.color='#e5533d';
+function gameOver(){lbForm(true);game.state='over';game.afterOver='retry';$('retryBtn').textContent=`Retry level ${game.level}`;$('overT').textContent='THE CREW IS GONE';$('overT').style.color='#e5533d';
   $('overS').textContent=`Nobody made it out. You survived ${Math.floor(game.time)} seconds and took down ${game.kills} zombies.`;showScreen('over');$('hud').style.display='none';}
 function levelDone(){
-  const last=game.level>=LEVELS.length;game.state='over';
+  const last=game.level>=LEVELS.length;game.state='over';lbLevel(game.level);lbForm(last);
   const left=game.gang.filter(g=>g.status!=='dead'&&g.status!=='turned').length;
   $('overT').textContent=last?'YOU SURVIVED CINDER CITY!':`LEVEL ${game.level} COMPLETE`;$('overT').style.color='#7fe39a';
   $('overS').textContent=last?`${player.c.name} ${LEVELS[game.level-1].out}. ${game.kills} zombies down in total. ${left===2?'The whole crew survived!':'But not everyone made it…'}`
@@ -5723,7 +5746,7 @@ function tick(dt){
   const pl=game.state==='playing'||game.state==='switching';if(pl!==document.body.classList.contains('playing'))document.body.classList.toggle('playing',pl);
   if(pl){
     game.time+=dt;fpsMon(dt);
-    if(player&&game.state==='playing')updatePlayer(dt);
+    if(player&&game.state==='playing'){updatePlayer(dt);lbTrack(dt);}
     for(let i=zombies.length-1;i>=0;i--){if(updateZombie(zombies[i],dt)){scene.remove(zombies[i].mesh);zombies.splice(i,1);}}
     if(game.state==='playing'){updateSpawning(dt);updateExit(dt);}
     drawMinimap(dt);
@@ -5736,6 +5759,45 @@ function tick(dt){
   for(const k in pressed)delete pressed[k];mouse.lEdge=false;
   if(markerT>0){markerT-=dt;marker.material.opacity=Math.max(0,markerT/.6);marker.scale.setScalar(1+(.6-markerT));}
 }
+
+// ================= Leaderboard =================
+// Only works when the game is served together with its api/ folder (PHP + MySQL). Anywhere else the
+// first request fails and everything here stays hidden.
+const LB={api:location.protocol.indexOf('http')===0?'api/':null,tab:'time',data:null,from:'menu',me:''};
+function lbCall(a,body){if(!LB.api)return Promise.reject(new Error('no api'));
+  return fetch(LB.api+'?a='+a,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{cache:'no-store'})
+    .then(r=>r.json()).then(d=>{if(!d||!d.ok)throw new Error((d&&d.error)||'failed');return d;});}
+// a run = one campaign from level 1. Jumping in with ?level=N has no run and cannot post a score.
+function lbStart(){const r=game.run={id:null,token:null,time:0,dist:0,done:0,pl:null,px:0,pz:0,wait:null};
+  lbCall('start',{chr:game.sel}).then(d=>{r.id=d.run;r.token=d.token;}).catch(()=>{});}
+function lbTrack(dt){const r=game.run,p=player;if(!r||!p)return;r.time+=dt;
+  if(r.pl===p){const d=Math.hypot(p.x-r.px,p.z-r.pz);if(d<1.5)r.dist+=d;}r.pl=p;r.px=p.x;r.pz=p.z;}
+function lbTotals(){const r=game.run;return {run:r.id,token:r.token,time:Math.round(r.time),kills:game.kills,dist:Math.round(r.dist)};}
+function lbLevel(n){const r=game.run;if(!r||!r.id||r.done>=n)return;r.done=n;r.wait=lbCall('level',Object.assign(lbTotals(),{level:n})).catch(()=>{});}
+const lbClock=s=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
+const lbKm=m=>m>=1000?(m/1000).toFixed(1)+' km':Math.round(m)+' m';
+function lbForm(on){const r=game.run,ok=on&&r&&r.id;$('lbForm').classList.toggle('show',!!ok);if(!ok)return;
+  $('lbStats').innerHTML=`<div>Time<b>${lbClock(r.time)}</b></div><div>Zombies killed<b>${game.kills}</b></div><div>Distance walked<b>${lbKm(r.dist)}</b></div>`;
+  $('lbName').value=LB.me;$('lbName').disabled=false;$('lbSend').disabled=false;$('lbSend').style.display='';
+  $('lbMsg').textContent=r.done>=LEVELS.length?'':'Fastest time is only for crews that finish all five levels.';}
+function lbSend(){const r=game.run;if(!r||!r.id)return;const name=$('lbName').value.trim();
+  if(!name){$('lbMsg').textContent='Enter a name first.';return;}
+  $('lbSend').disabled=true;$('lbMsg').textContent='Posting…';
+  (r.wait||Promise.resolve()).then(()=>lbCall('submit',Object.assign(lbTotals(),{name}))).then(d=>{LB.me=d.name;try{localStorage.setItem('ccName',d.name);}catch(e){}
+    $('lbName').value=d.name;$('lbName').disabled=true;$('lbSend').style.display='none';$('lbMsg').textContent='Score posted as '+d.name+'.';LB.data=null;})
+   .catch(e=>{$('lbSend').disabled=false;$('lbMsg').textContent=e.message==='too many requests'?'Too many scores from here. Try again later.':e.message==='bad name'?'That name can’t be used. Try another.':'Couldn’t post the score. Try again.';});}
+function lbDraw(){const d=LB.data;document.querySelectorAll('[data-lb]').forEach(b=>b.classList.toggle('on',b.dataset.lb===LB.tab));
+  const rows=d?d[LB.tab]||[]:[],f=LB.tab==='time'?lbClock:LB.tab==='dist'?lbKm:(v=>v);
+  const T=$('lbList');T.textContent='';
+  rows.forEach((r,i)=>{const tr=T.insertRow();if(LB.me&&r.name===LB.me)tr.className='me';
+    tr.insertCell().textContent=i+1;const n=tr.insertCell();n.textContent=r.name+' ';const c=document.createElement('span');c.className='ch';c.textContent=r.chr;n.appendChild(c);tr.insertCell().textContent=f(r.v);});
+  $('lbNote').textContent=!d?'Loading…':!rows.length?'Nobody here yet. Be the first.':LB.tab==='time'?'Only crews that finished all five levels.':'';}
+function lbShow(from){LB.from=from;showScreen('board');lbDraw();lbCall('top').then(d=>{LB.data=d;lbDraw();}).catch(()=>{$('lbNote').textContent='Couldn’t load the leaderboard.';});}
+try{LB.me=localStorage.getItem('ccName')||'';}catch(e){}
+$('lbSend').onclick=lbSend;$('lbName').onkeydown=e=>{if(e.key==='Enter')lbSend();};
+$('lbView').onclick=()=>lbShow('over');$('lbBtn').onclick=()=>lbShow('menu');$('lbBack').onclick=()=>showScreen(LB.from);
+document.querySelectorAll('[data-lb]').forEach(b=>b.onclick=()=>{LB.tab=b.dataset.lb;lbDraw();});
+lbCall('top').then(d=>{LB.data=d;$('lbBtn').style.display='inline-block';}).catch(()=>{LB.api=null;}); // no api here: stay hidden
 
 // ================= Menu =================
 function buildMenu(){
@@ -5777,7 +5839,7 @@ camPos.copy(CAM_OFF);
  if(q&&QUAL[q]){qualityLocked=true;applyQuality(q);}else applyQuality(touchMode?((navigator.hardwareConcurrency||4)<=4?'low':'medium'):'high');}
 requestAnimationFrame(frame);
 // expose for testing
-window.__game={CHARGEO,PV,drawPreviews,sim:(n)=>{for(let i=0;i<n;i++)tick(.05);},evac,world,startLevel,LEVELS,pickups,touch,setTouchMode,boxes,camera,game,get player(){return player;},zombies,startGame,keys,mouse};
+window.__game={LB,lbForm,CHARGEO,PV,drawPreviews,sim:(n)=>{for(let i=0;i<n;i++)tick(.05);},evac,world,startLevel,LEVELS,pickups,touch,setTouchMode,boxes,camera,game,get player(){return player;},zombies,startGame,keys,mouse};
 // jump straight to a level with ?level=N in the address
 {const lv=parseInt(new URLSearchParams(location.search).get('level'),10);
  // wait for the character models, otherwise everyone spawns as the plain fallback figure

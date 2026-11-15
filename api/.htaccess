@@ -1,0 +1,5 @@
+# Only index.php and admin.php are meant to be opened from outside.
+<FilesMatch "^(config(\.sample)?\.php|lib\.php|schema\.sql)$">
+  Require all denied
+</FilesMatch>
+Options -Indexes
