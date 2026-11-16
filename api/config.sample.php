@@ -14,7 +14,7 @@ return [
   'admin_password' => 'CHANGE-ME',
 
   // Names containing any of these (upper or lower case) are replaced by "Survivor".
-  'badwords' => ['fuck', 'shit', 'nazi', 'hitler'],
+  'badwords' => ['fuck', 'shit', 'nazi', 'hitler', 'sex'],
 
   // Limits per IP address and hour.
   'max_starts_per_hour'  => 40,
