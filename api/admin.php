@@ -67,12 +67,23 @@ $btn = function (int $id, string $do, string $label) use ($csrf): string {
   return '<form method="post"><input type="hidden" name="csrf" value="' . h($csrf) . '"><input type="hidden" name="id" value="' . $id . '">'
     . '<button name="do" value="' . h($do) . '"' . $conf . '>' . h($label) . '</button></form> ';
 };
+// visitors: unique addresses and page loads, per day for the last 30 days
+$vis = ''; $vt = ['u' => 0, 'n' => 0];
+try {
+  $vrows = $db->query('SELECT day, COUNT(*) AS u, SUM(n) AS n FROM cc_visits WHERE day >= CURDATE() - INTERVAL 29 DAY GROUP BY day ORDER BY day DESC')->fetchAll();
+  $vt = $db->query('SELECT COUNT(DISTINCT ip_hash) AS u, SUM(n) AS n FROM cc_visits')->fetch();
+  $vis = '<h3>Visitors</h3><p>All time: ' . (int)$vt['u'] . ' different visitors, ' . (int)$vt['n'] . ' page loads.</p>'
+    . '<table style="width:auto"><tr><th>Day</th><th>Visitors</th><th>Page loads</th></tr>';
+  foreach ($vrows as $v) $vis .= '<tr><td>' . h($v['day']) . '</td><td>' . (int)$v['u'] . '</td><td>' . (int)$v['n'] . '</td></tr>';
+  $vis .= '</table><h3>Scores</h3>';
+} catch (Throwable $e) { $vis = '<h3>Visitors</h3><p>No visits counted yet.</p><h3>Scores</h3>'; }
+
 $fmt = function (int $s): string { return sprintf('%d:%02d', intdiv($s, 60), $s % 60); };
 
 $b = '<h2>Cinder City admin</h2><p>' . (int)$tot['n'] . ' scores, ' . (int)$tot['h'] . ' hidden. '
   . '<a href="admin.php">Latest</a> · <a href="admin.php?show=hidden">Hidden only</a> '
   . '<form method="post"><input type="hidden" name="csrf" value="' . h($csrf) . '"><button name="logout" value="1">Log out</button></form></p>'
-  . '<table><tr><th>When</th><th>Name</th><th>Character</th><th>Finished</th><th>Time</th><th>Kills</th><th>Distance</th><th>Address</th><th>Note</th><th></th></tr>';
+  . $vis . '<table><tr><th>When</th><th>Name</th><th>Character</th><th>Finished</th><th>Time</th><th>Kills</th><th>Distance</th><th>Address</th><th>Note</th><th></th></tr>';
 foreach ($rows as $r) {
   $id = (int)$r['id'];
   $b .= '<tr class="' . ($r['hidden'] ? 'hid' : '') . '"><td>' . h(date('Y-m-d H:i', (int)$r['created_at'])) . '</td><td>' . h($r['name']) . '</td><td>' . h($r['chr']) . '</td>'

@@ -35,6 +35,15 @@ CREATE TABLE IF NOT EXISTS cc_scores (
   KEY ix_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- internal visitor count: one row per address (keyed hash) and day; n = page loads that day.
+-- The API also creates this table by itself the first time a visit is counted.
+CREATE TABLE IF NOT EXISTS cc_visits (
+  day     DATE         NOT NULL,
+  ip_hash CHAR(64)     NOT NULL,
+  n       INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (day, ip_hash)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- one row per request that is rate limited (ticket, score, admin login)
 CREATE TABLE IF NOT EXISTS cc_hits (
   ip_hash CHAR(64)     NOT NULL,

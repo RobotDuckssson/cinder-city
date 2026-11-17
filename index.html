@@ -5764,6 +5764,7 @@ function tick(dt){
 // Only works when the game is served together with its api/ folder (PHP + MySQL). Anywhere else the
 // first request fails and everything here stays hidden.
 const LB={api:location.protocol.indexOf('http')===0?'api/':null,tab:'time',data:null,from:'menu',me:''};
+if(LB.api)try{fetch(LB.api+'?a=visit',{method:'POST',keepalive:true}).catch(()=>{});}catch(e){} // internal visitor count
 function lbCall(a,body){if(!LB.api)return Promise.reject(new Error('no api'));
   return fetch(LB.api+'?a='+a,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{cache:'no-store'})
     .then(r=>r.json()).then(d=>{if(!d||!d.ok)throw new Error((d&&d.error)||'failed');return d;});}

@@ -26,6 +26,12 @@ try {
     cc_json($out);
   }
 
+  if ($a === 'visit') { // internal visitor count: one row per address and day, n = page loads
+    if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') cc_fail(405, 'POST only');
+    cc_visit();
+    cc_json(['ok' => true]);
+  }
+
   if ($a === 'start') {
     $d = cc_body();
     $c = cc_config();

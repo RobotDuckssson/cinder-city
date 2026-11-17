@@ -77,6 +77,25 @@ function cc_rate(string $act, int $max): void {
   $db->prepare('INSERT INTO cc_hits (ip_hash, act, t) VALUES (?, ?, ?)')->execute([$ip, $act, $now]);
 }
 
+// Counts a page load. Addresses are only stored as a keyed hash, so nobody can be traced from the table.
+// The table makes itself the first time, so nothing has to be imported for the counter.
+function cc_visit(): void {
+  $db = cc_db();
+  $sql = 'INSERT INTO cc_visits (day, ip_hash, n) VALUES (CURDATE(), ?, 1) ON DUPLICATE KEY UPDATE n = LEAST(n + 1, 100000)';
+  $args = [cc_ip_hash()]; // the day comes from the database clock, the same one the admin page reads
+  try { $db->prepare($sql)->execute($args); }
+  catch (PDOException $e) {
+    $db->exec(CC_VISITS_TABLE);
+    $db->prepare($sql)->execute($args);
+  }
+}
+const CC_VISITS_TABLE = 'CREATE TABLE IF NOT EXISTS cc_visits (
+  day     DATE         NOT NULL,
+  ip_hash CHAR(64)     NOT NULL,
+  n       INT UNSIGNED NOT NULL DEFAULT 1,
+  PRIMARY KEY (day, ip_hash)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci';
+
 // now and then: forget old tickets and rate-limit rows
 function cc_cleanup(): void {
   if (random_int(1, 50) !== 1) return;
