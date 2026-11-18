@@ -65,7 +65,8 @@ try {
     $r = cc_run($d);
     $c = cc_config();
     $name = cc_name($d['name'] ?? '');
-    if ($name === '') $name = 'Unnamed' . random_int(1000, 9999); // the game saves every run at the end, before the player has typed a name
+    // the game saves every run at the end, before the player has typed a name: those get a name of their own that no other run has
+    if ($name === '' || preg_match(CC_ANON_RE, $name)) $name = cc_anon($name, $r['id']);
     cc_rate('submit', (int)($c['max_submits_per_hour'] ?? 20));
     $time = cc_int($d['time'] ?? 0, 999999); $kills = cc_int($d['kills'] ?? 0, 999999); $dist = cc_int($d['dist'] ?? 0, 9999999);
     $finished = (int)$r['levels_done'] >= CC_LEVELS;

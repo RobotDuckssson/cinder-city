@@ -96,6 +96,23 @@ const CC_VISITS_TABLE = 'CREATE TABLE IF NOT EXISTS cc_visits (
   PRIMARY KEY (day, ip_hash)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci';
 
+// A name for a run saved before the player typed one: "Unnamed" + 5 letters/digits (about 33 million variants).
+// The name the game picked is kept unless another run already has it; then a fresh one is drawn.
+const CC_ANON_RE = '/^Unnamed[A-Z0-9]{4,5}$/';
+function cc_anon(string $want, string $runId): string {
+  $q = cc_db()->prepare('SELECT COUNT(*) FROM cc_scores WHERE name = ? AND run_id <> ?');
+  $abc = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  for ($i = 0; $i < 10; $i++) {
+    if ($want !== '' && preg_match(CC_ANON_RE, $want)) {
+      $q->execute([$want, $runId]);
+      if ((int)$q->fetchColumn() === 0) return $want;
+    }
+    $want = 'Unnamed';
+    for ($k = 0; $k < 5; $k++) $want .= $abc[random_int(0, 31)];
+  }
+  return $want;
+}
+
 // now and then: forget old tickets and rate-limit rows
 function cc_cleanup(): void {
   if (random_int(1, 50) !== 1) return;
