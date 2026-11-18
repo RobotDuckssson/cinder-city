@@ -5769,7 +5769,7 @@ function lbCall(a,body){if(!LB.api)return Promise.reject(new Error('no api'));
   return fetch(LB.api+'?a='+a,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{cache:'no-store'})
     .then(r=>r.json()).then(d=>{if(!d||!d.ok)throw new Error((d&&d.error)||'failed');return d;});}
 // a run = one campaign from level 1. Jumping in with ?level=N has no run and cannot post a score.
-function lbStart(){const r=game.run={id:null,token:null,time:0,dist:0,done:0,pl:null,px:0,pz:0,wait:null};
+function lbStart(){const r=game.run={id:null,token:null,time:0,dist:0,done:0,pl:null,px:0,pz:0,wait:null,anon:'Unnamed'+(1000+Math.floor(Math.random()*9000))}; // anon: the run's own name until the player types one
   lbCall('start',{chr:game.sel}).then(d=>{r.id=d.run;r.token=d.token;}).catch(()=>{});}
 function lbTrack(dt){const r=game.run,p=player;if(!r||!p)return;r.time+=dt;
   if(r.pl===p){const d=Math.hypot(p.x-r.px,p.z-r.pz);if(d<1.5)r.dist+=d;}r.pl=p;r.px=p.x;r.pz=p.z;}
@@ -5783,8 +5783,8 @@ function lbForm(on){const r=game.run,ok=on&&r&&r.id;$('lbForm').classList.toggle
   const note=r.done>=LEVELS.length?'':' Fastest time is only for crews that finish all five levels.';
   // the run is saved straight away (as "Unnamed" if no name is known), so nobody loses a score by forgetting to press Save
   r.named=false;$('lbMsg').textContent='Saving…';
-  lbSubmit(LB.me).then(d=>{if(r.named)return;LB.data=null;
-    $('lbMsg').textContent=(LB.me?'Score saved as '+d.name+'. Change the name and press Save score if you like.':'Score saved as Unnamed. Type your name and press Save score to put your name on the board.')+note;})
+  lbSubmit(LB.me||r.anon).then(d=>{if(r.named)return;LB.data=null;
+    $('lbMsg').textContent=(LB.me?'Score saved as '+d.name+'. Change the name and press Save score if you like.':'Score saved as '+d.name+'. Type your name and press Save score to put your name on the board.')+note;})
    .catch(()=>{if(!r.named)$('lbMsg').textContent='Type your name and press Save score.'+note;});}
 // submits are queued behind each other, so a quick Save never races the automatic one
 function lbSubmit(name){const r=game.run,p=(r.wait||Promise.resolve()).then(()=>lbCall('submit',Object.assign(lbTotals(),{name})));r.wait=p.catch(()=>{});return p;}
