@@ -65,7 +65,7 @@ try {
     $r = cc_run($d);
     $c = cc_config();
     $name = cc_name($d['name'] ?? '');
-    if ($name === '') cc_fail(400, 'bad name');
+    if ($name === '') $name = 'Unnamed'; // the game saves every run at the end, before the player has typed a name
     cc_rate('submit', (int)($c['max_submits_per_hour'] ?? 20));
     $time = cc_int($d['time'] ?? 0, 999999); $kills = cc_int($d['kills'] ?? 0, 999999); $dist = cc_int($d['dist'] ?? 0, 9999999);
     $finished = (int)$r['levels_done'] >= CC_LEVELS;

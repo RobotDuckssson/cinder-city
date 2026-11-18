@@ -198,7 +198,7 @@
   <table id="lbList"></table><div class="sub" id="lbNote" style="font-size:12px;margin-top:10px"></div><button class="sec" id="lbBack">Back</button></div>
 <div id="pause" class="screen"><div class="big-t">PAUSED</div><button class="big" id="resumeBtn">Resume</button><button class="sec" id="quitBtn">Main menu</button></div>
 <div id="over" class="screen"><div class="big-t" id="overT" style="color:#e5533d">THE CREW IS GONE</div><div class="sub" id="overS"></div>
-  <div id="lbForm"><div id="lbStats"></div><input id="lbName" maxlength="12" placeholder="Your name" autocomplete="off" spellcheck="false"> <button class="sec" id="lbSend">Post score</button> <button class="sec" id="lbView">Leaderboard</button><div id="lbMsg"></div></div>
+  <div id="lbForm"><div id="lbStats"></div><input id="lbName" maxlength="12" placeholder="Your name" autocomplete="off" spellcheck="false"> <button class="sec" id="lbSend">Save score</button> <button class="sec" id="lbView">Leaderboard</button><div id="lbMsg"></div></div>
   <button class="big" id="retryBtn">Try again</button><button class="sec" id="menuBtn">Main menu</button></div>
 <div id="err"></div>
 <div id="touchUI">
@@ -5780,13 +5780,20 @@ const lbKm=m=>m>=1000?(m/1000).toFixed(1)+' km':Math.round(m)+' m';
 function lbForm(on){const r=game.run,ok=on&&r&&r.id;$('lbForm').classList.toggle('show',!!ok);if(!ok)return;
   $('lbStats').innerHTML=`<div>Time<b>${lbClock(r.time)}</b></div><div>Zombies killed<b>${game.kills}</b></div><div>Distance walked<b>${lbKm(r.dist)}</b></div>`;
   $('lbName').value=LB.me;$('lbName').disabled=false;$('lbSend').disabled=false;$('lbSend').style.display='';
-  $('lbMsg').textContent=r.done>=LEVELS.length?'':'Fastest time is only for crews that finish all five levels.';}
+  const note=r.done>=LEVELS.length?'':' Fastest time is only for crews that finish all five levels.';
+  // the run is saved straight away (as "Unnamed" if no name is known), so nobody loses a score by forgetting to press Save
+  r.named=false;$('lbMsg').textContent='Saving…';
+  lbSubmit(LB.me).then(d=>{if(r.named)return;LB.data=null;
+    $('lbMsg').textContent=(LB.me?'Score saved as '+d.name+'. Change the name and press Save score if you like.':'Score saved as Unnamed. Type your name and press Save score to put your name on the board.')+note;})
+   .catch(()=>{if(!r.named)$('lbMsg').textContent='Type your name and press Save score.'+note;});}
+// submits are queued behind each other, so a quick Save never races the automatic one
+function lbSubmit(name){const r=game.run,p=(r.wait||Promise.resolve()).then(()=>lbCall('submit',Object.assign(lbTotals(),{name})));r.wait=p.catch(()=>{});return p;}
 function lbSend(){const r=game.run;if(!r||!r.id)return;const name=$('lbName').value.trim();
   if(!name){$('lbMsg').textContent='Enter a name first.';return;}
-  $('lbSend').disabled=true;$('lbMsg').textContent='Posting…';
-  (r.wait||Promise.resolve()).then(()=>lbCall('submit',Object.assign(lbTotals(),{name}))).then(d=>{LB.me=d.name;try{localStorage.setItem('ccName',d.name);}catch(e){}
-    $('lbName').value=d.name;$('lbName').disabled=true;$('lbSend').style.display='none';$('lbMsg').textContent='Score posted as '+d.name+'.';LB.data=null;})
-   .catch(e=>{$('lbSend').disabled=false;$('lbMsg').textContent=e.message==='too many requests'?'Too many scores from here. Try again later.':e.message==='bad name'?'That name can’t be used. Try another.':'Couldn’t post the score. Try again.';});}
+  r.named=true;$('lbSend').disabled=true;$('lbMsg').textContent='Saving…';
+  lbSubmit(name).then(d=>{LB.me=d.name;try{localStorage.setItem('ccName',d.name);}catch(e){}
+    $('lbName').value=d.name;$('lbName').disabled=true;$('lbSend').style.display='none';$('lbMsg').textContent='Score saved as '+d.name+'.';LB.data=null;})
+   .catch(e=>{$('lbSend').disabled=false;$('lbMsg').textContent=e.message==='too many requests'?'Too many scores from here. Try again later.':e.message==='bad name'?'That name can’t be used. Try another.':'Couldn’t save the score. Try again.';});}
 function lbDraw(){const d=LB.data;document.querySelectorAll('[data-lb]').forEach(b=>b.classList.toggle('on',b.dataset.lb===LB.tab));
   const rows=d?d[LB.tab]||[]:[],f=LB.tab==='time'?lbClock:LB.tab==='dist'?lbKm:(v=>v);
   const T=$('lbList');T.textContent='';
